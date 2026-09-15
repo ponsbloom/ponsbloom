@@ -1,120 +1,86 @@
-# ─── General ──────────────────────────────────────────────────────────────────
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-Thumbs.db
-*.swp
-*.swo
-*~
+# Build artifacts
+target/
+*.o
+*.a
+*.dylib
 
-# ─── Secrets & environment ────────────────────────────────────────────────────
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.p8
-*.p12
-*.jks
-secrets/
-.secrets
-
-# ─── Go (coordinator) ─────────────────────────────────────────────────────────
-coordinator/bin/
-coordinator/*.exe
-coordinator/*.test
-coordinator/coverage.out
-coordinator/coverage.html
-
-# ─── Rust (provider) ──────────────────────────────────────────────────────────
-provider/target/
-provider/**/*.rs.bk
-*.orig
-
-# ─── Node.js / Next.js (console-ui) ──────────────────────────────────────────
-node_modules/
 .next/
-.nuxt/
-out/
+
+# Rust
+Cargo.lock
+
+# Go
+coordinator/bin/
+
+# Swift (all .build and .swiftpm dirs anywhere)
+.build/
+.swiftpm/
+
+# Node.js / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.egg-info/
 dist/
 build/
-.turbo/
-*.tsbuildinfo
-.vercel/
-.netlify/
-console-ui/.env.local
-console-ui/.env.development.local
-console-ui/.env.test.local
-console-ui/.env.production.local
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.pnpm-store/
-
-# ─── Python (image-bridge) ────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.dylib
-.Python
-image-bridge/venv/
-image-bridge/.venv/
-image-bridge/build/
-image-bridge/dist/
-image-bridge/*.egg-info/
-image-bridge/.eggs/
+.venv/
+*.pyc
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
 
-# ─── Swift (enclave) ──────────────────────────────────────────────────────────
-enclave/build/
-enclave/*.xcuserstate
-enclave/xcuserdata/
-enclave/DerivedData/
-enclave/*.xcworkspace/xcuserdata/
-enclave/*.xccheckout
-enclave/Carthage/Build/
+# macOS
+.DS_Store
 
-# ─── ML model weights ─────────────────────────────────────────────────────────
-models/
-*.gguf
-*.safetensors
-*.bin
-*.pt
-*.pth
-*.mlmodel
-*.mlpackage
-
-# ─── IDE / editors ────────────────────────────────────────────────────────────
+# IDE
 .idea/
 .vscode/
-*.code-workspace
-*.sublime-workspace
-*.sublime-project
-.cursor/
+*.swp
+*.swo
 
-# ─── Testing & coverage ───────────────────────────────────────────────────────
-coverage/
-test-results/
-*.lcov
-junit.xml
+# Config (local dev)
+*.local.toml
+.env
+.env.*
+coordinator/.env
 
-# ─── Logs ─────────────────────────────────────────────────────────────────────
+# Keys and certificates (never commit)
+*.pem
+*.csr
+*.p12
+enclave_key.data
+
+# Compiled binaries (coordinator)
+coordinator/ponsbloom-coordinator
+coordinator/ponsbloom-coordinator-linux
+
+# LaTeX build artifacts
+*.aux
 *.log
-logs/
-*.log.*
+*.out
 
-# ─── Misc ─────────────────────────────────────────────────────────────────────
+# Temp directories
 tmp/
-temp/
-.tmp/
-.cache/
+
+
+d-inf-docs/
+.vercel
+.claude/worktrees/
+.external/
+
+# Generated prompts
+claude-voice-system-prompt.md
+
+# Solana test validator ledger (local testing)
+test-ledger/
+
+# Internal docs (contain infra details, not for public repo)
+docs/coordinator-deploy-runbook.md
+docs/.private/
+
+# Rust cross-language test build artifacts
+coordinator/internal/e2e/testdata/decrypt/target/
+coordinator/coordinator
+coordinator/ponsbloom-coordinator-linux
+docs/RUNBOOK.md

@@ -1,197 +1,222 @@
 # Ponsbloom
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/ponsbloom/ponsbloom/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Research Preview](https://img.shields.io/badge/status-research%20preview-blue)](https://ponsbloom.com)
+> **Research project** -- Ponsbloom is an experimental prototype exploring decentralized private inference on Apple Silicon. Expect rough edges, breaking changes, and downtime.
 
-**Decentralized private AI inference on idle Apple Silicon Macs.**
+AI compute today flows through three layers of markup — GPU manufacturers to hyperscalers to API providers to end users. Meanwhile, over 100 million Apple Silicon Macs sit idle most of each day with 64–512 GB of unified memory and up to 819 GB/s memory bandwidth, capable of running models with up to 500 billion parameters at interactive speeds. Ponsbloom connects this idle capacity directly to demand. The core technical challenge is that the machine owner has root access and physical custody — they should not be able to see user prompts or model responses. We solve this by eliminating every software path through which inference data could be observed: the inference engine runs in-process (no subprocess, no local server, no IPC), debuggers are denied at the kernel level (PT_DENY_ATTACH), memory-reading APIs are blocked by Hardened Runtime, and these protections are provably immutable for the process lifetime because disabling SIP requires a reboot that terminates the process. A four-layer attestation architecture — Secure Enclave signatures, MDM-based independent verification, Apple Managed Device Attestation with Apple-signed certificate chains, and periodic challenge-response — verifies that each machine's security posture has not been tampered with. The result: the only remaining attack is physically probing memory chips soldered into the SoC package, the same residual threat model accepted by Apple's Private Cloud Compute for Siri and Apple Intelligence. The API is OpenAI-compatible. Operators keep 95% of revenue.
 
-The cloud AI inference market extracts margin at every layer — GPU fleets, data-center overhead, and opaque pricing leave both users and compute owners shortchanged. Ponsbloom routes inference requests directly to verified Apple Silicon machines sitting idle on desks and in homes worldwide. Every inference request is encrypted end-to-end, every response is cryptographically signed by Apple Secure Enclave hardware you can verify yourself, and every provider earns 100% of the compute fee with no platform cut.
+## How It Works
 
----
+```
+Consumer (SDK / Web UI / curl)
+    |
+    |  HTTPS, OpenAI-compatible API
+    v
+Coordinator (Go, Confidential VM)
+    |
+    |  WebSocket (outbound from provider)
+    v
+Provider (Rust, hardened process)
+    |
+    |  vllm-mlx / Draw Things / Cohere Transcribe
+    v
+Apple Silicon GPU (Metal)
+```
+
+Providers connect outbound over WebSocket -- no port forwarding needed. The coordinator encrypts each request with the provider's X25519 public key before forwarding it. Only the hardened provider process can decrypt it.
+
+## Models
+
+Models are selected from a curated catalog. The coordinator only routes requests to models it has verified.
+
+### Text
+
+| Model | Architecture | Size | Min RAM | Notes |
+|-------|-------------|------|---------|-------|
+| Gemma 4 26B 8-bit | 26B MoE, 4B active | 28 GB | 36 GB | Google's latest MoE, fast multimodal |
+| Qwen3.5 27B Claude Opus 8-bit | 27B dense | 27 GB | 36 GB | Frontier-quality reasoning, Claude Opus distilled |
+| Trinity Mini 8-bit | 27B Adaptive MoE | 26 GB | 48 GB | Fast agentic inference |
+| Qwen3.5 122B MoE 8-bit | 122B MoE, 10B active | 122 GB | 128 GB | Best quality reasoning |
+| MiniMax M2.5 8-bit | 239B MoE, 11B active | 243 GB | 256 GB | SOTA coding, ~100 tok/s |
+
+### Image
+
+| Model | Architecture | Size | Min RAM |
+|-------|-------------|------|---------|
+| FLUX.2 Klein 4B | 4B diffusion | 8.1 GB | 16 GB |
+| FLUX.2 Klein 9B | 9B diffusion | 13 GB | 24 GB |
+
+Image generation uses Draw Things with Metal FlashAttention. Adaptive batching sizes batches based on available system memory.
+
+### Speech-to-Text
+
+| Model | Architecture | Size | Min RAM |
+|-------|-------------|------|---------|
+| Cohere Transcribe 03-2026 | 2B conformer | 4.2 GB | 8 GB |
+
+## Use the API
+
+OpenAI-compatible. Works with any OpenAI SDK by changing the base URL.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.darkbloom.dev/v1",
+    api_key="ponsbloom-..."
+)
+
+# Chat completion
+response = client.chat.completions.create(
+    model="qwen3.5-27b-claude-opus-8bit",
+    messages=[{"role": "user", "content": "Hello"}],
+    stream=True
+)
+
+# Image generation
+image = client.images.generate(
+    model="flux_2_klein_4b_q8p.ckpt",
+    prompt="A cat astronaut on Mars"
+)
+
+# Audio transcription
+transcript = client.audio.transcriptions.create(
+    model="CohereLabs/cohere-transcribe-03-2026",
+    file=open("audio.mp3", "rb")
+)
+```
+
+The Anthropic Messages API is also supported at `/v1/messages`.
+
+## Become a Provider
+
+Earn by serving inference on your idle Mac.
+
+### Requirements
+
+- Apple Silicon Mac (M1 or later)
+- macOS 14 (Sonoma) or later
+- 16 GB+ unified memory recommended
+
+### Install
+
+```bash
+curl -fsSL https://api.darkbloom.dev/install.sh | bash
+```
+
+Zero prerequisites. The installer bundles the provider binary, Python 3.12 runtime, vllm-mlx, ffmpeg, and Secure Enclave tooling. You pick a model from the catalog, link your account, and you're serving within minutes.
+
+### Provider CLI
+
+```bash
+ponsbloom serve          # Start serving (foreground)
+ponsbloom start          # Background daemon
+ponsbloom stop           # Stop daemon
+ponsbloom status         # Hardware and connection info
+ponsbloom doctor         # Diagnose issues
+ponsbloom models list    # Downloaded models
+ponsbloom earnings       # Earnings and usage
+ponsbloom update         # Check for updates
+```
+
+### macOS Menu Bar App
+
+A native SwiftUI app is also available:
+
+- One-click start/stop
+- Real-time throughput display
+- Idle detection (pauses when you're using your Mac)
+- Provider scheduling (set hours your Mac serves, GPU memory freed between windows)
+- Earnings dashboard
+- Auto-start at login
+
+### Scheduling
+
+Providers can configure time-based availability windows. Outside scheduled hours, the provider disconnects and shuts down the backend to free GPU memory. Configured in the app's Settings or directly in `~/.config/ponsbloom/provider.toml`:
+
+```toml
+[schedule]
+enabled = true
+
+[[schedule.windows]]
+days = ["mon", "tue", "wed", "thu", "fri"]
+start = "22:00"
+end = "08:00"
+```
+
+## Security
+
+Ponsbloom prevents anyone -- including providers -- from reading consumer prompts.
+
+| Layer | What It Does |
+|-------|-------------|
+| E2E encryption | Coordinator encrypts requests with provider's X25519 key before forwarding; only the hardened provider process decrypts |
+| Hardened Runtime + SIP | Blocks debugger attachment, memory reads, code injection |
+| Secure Enclave attestation | Hardware-bound P-256 identity, signed attestation blobs |
+| Binary hash verification | Coordinator verifies the provider runs a blessed binary |
+| Challenge-response | SIP/SecureBoot re-verified every 5 minutes |
+| MDM SecurityInfo | Apple MDM cross-checks hardware integrity (SIP, Secure Boot, FileVault) |
+| MDA certificate chain | Optional Apple Enterprise Attestation Root CA verification |
+| RDMA detection | Enables hypervisor and runs inside it |
+
+Attestation data is publicly verifiable at `GET /v1/providers/attestation`.
+
+### Trust Levels
+
+| Level | Name | Verification |
+|-------|------|-------------|
+| `self_signed` | Self-Attested | Secure Enclave signature + periodic challenge-response |
+| `hardware` | Hardware-Attested | MDA certificate chain from Apple Enterprise Attestation Root CA |
+
+## Pricing
+
+| Type | Rate |
+|------|------|
+| Text (Gemma 4 26B) | $0.065 / 1M input, $0.20 / 1M output |
+| Text (Qwen3.5 27B) | $0.10 / 1M input, $0.78 / 1M output |
+| Text (Qwen3.5 122B) | $0.13 / 1M input, $1.04 / 1M output |
+| Text (MiniMax M2.5) | $0.06 / 1M input, $0.50 / 1M output |
+| Image (FLUX.2 Klein 4B) | $0.0015 / image |
+| Audio (Cohere Transcribe) | $0.001 / minute |
+
+0% platform fee. Providers keep 100%.
 
 ## Architecture
 
-```
-  Consumer (OpenAI SDK / cURL)
-           │
-           │  HTTPS + JWT
-           ▼
-  ┌─────────────────────────┐
-  │      Coordinator        │  ← Go  ·  job scheduling · billing · attestation registry
-  └─────────┬───────────────┘
-            │  gRPC (mTLS)
-            ▼
-  ┌─────────────────────────┐
-  │    Provider Agent       │  ← Rust + PyO3  ·  sandboxed model runner
-  │                         │
-  │  ┌───────────────────┐  │
-  │  │   MLX Runtime     │  │  ← Apple Silicon neural engine  ·  Metal shaders
-  │  └───────────────────┘  │
-  │                         │
-  │  ┌───────────────────┐  │
-  │  │  Secure Enclave   │  │  ← attestation token  ·  output signing key
-  │  └───────────────────┘  │
-  └─────────────────────────┘
-```
+| Component | Language | Role |
+|-----------|----------|------|
+| Coordinator (`coordinator/`) | Go | Control plane: routing, attestation, billing, API |
+| Provider (`provider/`) | Rust | Inference agent: security, attestation, WebSocket client |
+| Console (`console-ui/`) | Next.js 16 | Web dashboard: chat, billing, provider verification |
+| macOS App (`app/Ponsbloom/`) | Swift | Menu bar app: status, scheduling, earnings |
+| Secure Enclave (`enclave/`) | Swift | Hardware-bound P-256 identity |
+| Image Bridge (`image-bridge/`) | Python | Draw Things gRPC integration for FLUX models |
+| Landing (`landing/`) | HTML | Static landing page |
 
----
-
-## Components
-
-| Component | Language / Runtime | Description |
-|---|---|---|
-| [`coordinator`](./coordinator) | Go 1.22 | Job scheduler, billing, attestation registry, REST + gRPC gateway |
-| [`provider`](./provider) | Rust + PyO3 / MLX | On-device inference agent; communicates with coordinator over mTLS |
-| [`console-ui`](./console-ui) | Next.js 14 / React | Web dashboard at [app.ponsbloom.com](https://app.ponsbloom.com) |
-| [`enclave`](./enclave) | Swift / CryptoKit | Secure Enclave key generation, attestation, and output signing |
-| [`image-bridge`](./image-bridge) | Python | Model image converter; GGUF / SafeTensors → MLX format |
-
----
-
-## Quickstart
-
-### Use the API (consumers)
+## Development
 
 ```bash
-# Install the Ponsbloom CLI (macOS / Linux)
-curl -fsSL https://ponsbloom.com/install.sh | sh
+# Coordinator
+cd coordinator && go test ./...
 
-# Or just use any OpenAI-compatible client
-pip install openai
+# Provider (set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 on Python 3.14+)
+cd provider && cargo test
+
+# macOS App
+cd app/Ponsbloom && swift build -c release
+
+# Console UI
+cd console-ui && npm install && npm run dev
+
+# Image Bridge tests
+cd image-bridge && python3 -m pytest tests/
 ```
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://api.ponsbloom.com/v1",
-    api_key="pb-...",          # from app.ponsbloom.com
-)
-
-stream = client.chat.completions.create(
-    model="qwen3.6-35b",
-    messages=[{"role": "user", "content": "Explain differential privacy in one paragraph."}],
-    stream=True,
-)
-for chunk in stream:
-    print(chunk.choices[0].delta.content or "", end="", flush=True)
-```
-
-### Become a provider (Mac owners)
-
-```bash
-# Requirements: Apple Silicon Mac, macOS 13+, 16 GB+ unified memory
-curl -fsSL https://ponsbloom.com/provider-install.sh | sh
-
-ponsbloom provider init      # generates Secure Enclave keypair + registers node
-ponsbloom provider start     # begins accepting inference jobs
-```
-
-See [docs/provider-setup.md](docs/provider-setup.md) for the full guide.
-
----
-
-## API Example
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://api.ponsbloom.com/v1",
-    api_key="pb-YOUR_KEY_HERE",
-)
-
-# Streaming chat completions
-response = client.chat.completions.create(
-    model="gemma-4-26b",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is the capital of France?"},
-    ],
-    stream=True,
-    temperature=0.7,
-    max_tokens=512,
-)
-
-for chunk in response:
-    delta = chunk.choices[0].delta
-    if delta.content:
-        print(delta.content, end="", flush=True)
-print()
-
-# Non-streaming
-response = client.chat.completions.create(
-    model="gpt-oss-20b",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(response.choices[0].message.content)
-```
-
-See [docs/api.md](docs/api.md) for the full API reference.
-
----
-
-## Models & Pricing
-
-All prices are per million tokens. Providers set their own floor; the table shows network-average rates.
-
-| Model | Input ($/M) | Output ($/M) | Context | Notes |
-|---|---|---|---|---|
-| `qwen3.6-35b` | $0.05 | $0.70 | 32k | Best quality/cost for reasoning |
-| `gemma-4-26b` | $0.042 | $0.22 | 128k | Long-context tasks |
-| `gpt-oss-20b` | $0.02 | $0.10 | 8k | Fastest, lowest cost |
-| `nvidia-nemotron-3.5` | $0.065 | $0.18 | 16k | Instruction-following |
-
----
-
-## Trust Model
-
-Ponsbloom applies four independent security layers so that neither Ponsbloom nor any provider can observe plaintext prompts or tamper with responses.
-
-| Layer | Mechanism | What it guarantees |
-|---|---|---|
-| **E2E Encryption** | TLS 1.3 + per-session key | Prompt and response never travel in plaintext |
-| **Secure Enclave** | Apple CryptoKit / SEP | Signing key is hardware-bound; never exported to the OS |
-| **Hardened Runtime** | macOS SIP + entitlement restrictions | Model process cannot be debugged or injected by the host |
-| **Output Signing** | ECDSA P-256 (Enclave key) | Every token stream is signed; clients verify before display |
-
-Attestation tokens are published on-chain (Ethereum mainnet) so any client can verify a provider's Secure Enclave registration without trusting Ponsbloom's servers.
-
----
-
-## Provider Setup
-
-Mac owners earn passive income by sharing idle compute. Requirements:
-
-- Apple Silicon Mac (M1 / M2 / M3 / M4 family)
-- macOS 13 Ventura or later
-- 16 GB unified memory minimum (24 GB+ recommended for larger models)
-- Residential or commercial internet, ≥ 50 Mbps upload
-
-```bash
-curl -fsSL https://ponsbloom.com/provider-install.sh | sh
-ponsbloom provider init
-ponsbloom provider start
-```
-
-Full setup instructions, firewall rules, and earnings calculator at [docs/provider-setup.md](docs/provider-setup.md).
-
----
-
-## Links
-
-| | |
-|---|---|
-| 🌐 Website | [ponsbloom.com](https://ponsbloom.com) |
-| 🚀 Console | [app.ponsbloom.com](https://app.ponsbloom.com) |
-| 📖 API Docs | [docs/api.md](docs/api.md) |
-| 🐦 X / Twitter | [@Ponsbloom](https://x.com/Ponsbloom) |
-| 🔒 Security | [SECURITY.md](SECURITY.md) |
-| 🤝 Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
-
----
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Proprietary. All rights reserved.
+
+## Disclaimer
+🚧 Ponsbloom is under active development and has not been audited. Darkblom is rapidly being upgraded, features may be added, removed or otherwise improved or modified and interfaces will have breaking changes. Ponsbloom should be used only for testing purposes and not in production. Ponsbloom is provided "as is" and the Ponsbloom contributors does not guarantee its functionality or provide support for its use in production. 🚧
+
+## Security Bugs
+Please report security vulnerabilities to security@ponsbloom.org. Do NOT report security bugs via Github Issues.

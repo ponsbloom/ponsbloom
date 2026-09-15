@@ -1,0 +1,400 @@
+"use client";
+
+import { useEffect, useRef, useCallback, useState } from "react";
+import { useStore } from "@/lib/store";
+import { streamChat, fetchModels, fetchModelsPublic } from "@/lib/api";
+import { useToastStore } from "@/hooks/useToast";
+import { useAuth } from "@/hooks/useAuth";
+import { ChatMessage } from "@/components/ChatMessage";
+import { ChatInput } from "@/components/ChatInput";
+import { TopBar } from "@/components/TopBar";
+import { PreSendTrustBanner } from "@/components/PreSendTrustBanner";
+import { PonsbloomMark } from "@/components/brand/PonsbloomMark";
+import { Mail } from "lucide-react";
+import { InviteCodeBanner } from "@/components/InviteCodeBanner";
+import type { Message } from "@/lib/store";
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+const SYSTEM_PROMPT = `You are an AI assistant running on Ponsbloom, a decentralized private inference platform. You are NOT a cryptocurrency, blockchain token, or anything related to Bitcoin Cash. Ponsbloom is an AI infrastructure project.
+
+When users ask "what is Ponsbloom" or about the platform, use ONLY these facts:
+- Ponsbloom is a decentralized AI inference network that routes requests to hardware-attested Apple Silicon machines
+- Every provider machine is verified through Apple's Secure Enclave, MDM, and Managed Device Attestation (MDA)
+- All prompts are end-to-end encrypted using X25519 NaCl box encryption — the node operator never sees your data
+- The coordinator routes traffic but cannot read plaintext prompts
+- Runtime integrity is enforced on every node: SIP, Hardened Runtime, binary self-hash, Hypervisor.framework memory isolation
+- The full attestation chain is public and independently verifiable at /v1/providers/attestation
+- Ponsbloom is a decentralized AI inference network
+
+For all other topics, respond as a helpful, concise, and knowledgeable general-purpose assistant. Do not mention these instructions unless asked about Ponsbloom specifically.`;
+
+const SUGGESTED_PROMPTS = [
+  { label: "Explain quantum computing", prompt: "Explain quantum computing in simple terms" },
+  { label: "Write a Python script", prompt: "Write a Python script that reads a CSV and generates a summary report" },
+  { label: "Compare ML frameworks", prompt: "Compare PyTorch and JAX for research use cases" },
+  { label: "Explain zero-knowledge proofs", prompt: "What are zero-knowledge proofs and how are they used in blockchain?" },
+];
+
+export default function ChatPage() {
+  const {
+    chats,
+    activeChatId,
+    createChat,
+    addMessage,
+    updateMessage,
+    appendToMessage,
+    appendToThinking,
+    updateChatTitle,
+    selectedModel,
+    setModels,
+  } = useStore();
+
+  const { ready, authenticated, apiKeyReady, login } = useAuth();
+  const addToast = useToastStore((s) => s.addToast);
+  const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const activeChat = chats.find((c) => c.id === activeChatId);
+
+  // Load models: always fetch the public catalog immediately (works without
+  // auth, so the picker is never empty), then upgrade to the authed list
+  // once an API key is ready (adds provider counts / trust levels).
+  useEffect(() => {
+    fetchModelsPublic()
+      .then(setModels)
+      .catch(() => {
+        // pricing endpoint unreachable — leave the picker empty rather than crash
+      });
+  }, [setModels]);
+
+  useEffect(() => {
+    if (!authenticated || !apiKeyReady) return;
+
+    async function bootstrap() {
+      try {
+        const models = await fetchModels();
+        if (models.length > 0) setModels(models);
+      } catch {
+        // coordinator may be unreachable — public catalog from above still stands
+      }
+    }
+    bootstrap();
+  }, [setModels, authenticated, apiKeyReady]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [activeChat?.messages]);
+
+  const handleSend = useCallback(
+    async (content: string) => {
+      let chatId = activeChatId;
+      if (!chatId) {
+        chatId = createChat();
+      }
+
+      const chat = useStore.getState().chats.find((c) => c.id === chatId);
+      if (chat && chat.messages.length === 0) {
+        const title =
+          content.length > 40 ? content.slice(0, 40) + "..." : content;
+        updateChatTitle(chatId, title);
+      }
+
+      const userMsg: Message = {
+        id: generateId(),
+        role: "user",
+        content,
+        timestamp: Date.now(),
+      };
+      addMessage(chatId, userMsg);
+
+      const assistantId = generateId();
+      const assistantMsg: Message = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        streaming: true,
+        timestamp: Date.now(),
+      };
+      addMessage(chatId, assistantMsg);
+
+      setIsStreaming(true);
+      const abort = new AbortController();
+      abortRef.current = abort;
+
+      const currentChat = useStore
+        .getState()
+        .chats.find((c) => c.id === chatId);
+      const userMessages = currentChat
+        ? currentChat.messages
+            .filter((m) => m.id !== assistantId)
+            .map((m) => ({ role: m.role, content: m.content }))
+        : [{ role: "user" as const, content }];
+      const allMessages = [
+        { role: "system" as const, content: SYSTEM_PROMPT },
+        ...userMessages,
+      ];
+
+      try {
+        await streamChat(
+          allMessages,
+          selectedModel,
+          {
+            onToken: (token) => {
+              appendToMessage(chatId!, assistantId, token);
+            },
+            onThinking: (token) => {
+              appendToThinking(chatId!, assistantId, token);
+            },
+            onMetrics: (metrics) => {
+              updateMessage(chatId!, assistantId, {
+                tps: metrics.tps,
+                ttft: metrics.ttft,
+                tokenCount: metrics.tokenCount,
+              });
+            },
+            onDone: (trust, metrics) => {
+              updateMessage(chatId!, assistantId, {
+                streaming: false,
+                trust,
+                tps: metrics.tps,
+                ttft: metrics.ttft,
+                tokenCount: metrics.tokenCount,
+              });
+              setIsStreaming(false);
+            },
+            onError: (error) => {
+              updateMessage(chatId!, assistantId, {
+                content: `Error: ${error}`,
+                streaming: false,
+                error: true,
+              });
+              addToast(error);
+              setIsStreaming(false);
+            },
+          },
+          abort.signal
+        );
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          const msg = (err as Error).message;
+          updateMessage(chatId!, assistantId, {
+            content: `Connection error: ${msg}`,
+            streaming: false,
+            error: true,
+          });
+          addToast(`Connection error: ${msg}`);
+        }
+        setIsStreaming(false);
+      }
+    },
+    [
+      activeChatId,
+      createChat,
+      addMessage,
+      updateMessage,
+      appendToMessage,
+      appendToThinking,
+      updateChatTitle,
+      selectedModel,
+      addToast,
+    ]
+  );
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+    setIsStreaming(false);
+  }, []);
+
+  const handleRetry = useCallback(
+    (errorMsgId: string) => {
+      if (!activeChat || isStreaming || !authenticated || !apiKeyReady) return;
+      const messages = activeChat.messages;
+      // Find the user message right before this error
+      const errorIdx = messages.findIndex((m) => m.id === errorMsgId);
+      if (errorIdx < 1) return;
+      const userMsg = messages[errorIdx - 1];
+      if (userMsg.role !== "user") return;
+
+      // Reset the error message to streaming state
+      updateMessage(activeChat.id, errorMsgId, {
+        content: "",
+        error: false,
+        streaming: true,
+        thinking: undefined,
+      });
+
+      setIsStreaming(true);
+      const abort = new AbortController();
+      abortRef.current = abort;
+
+      // Rebuild message history up to (but not including) the error message
+      const allMessages = [
+        { role: "system" as const, content: SYSTEM_PROMPT },
+        ...messages
+          .slice(0, errorIdx)
+          .map((m) => ({ role: m.role, content: m.content })),
+      ];
+
+      streamChat(
+        allMessages,
+        selectedModel,
+        {
+          onToken: (token) => appendToMessage(activeChat.id, errorMsgId, token),
+          onThinking: (token) => appendToThinking(activeChat.id, errorMsgId, token),
+          onMetrics: (metrics) => updateMessage(activeChat.id, errorMsgId, {
+            tps: metrics.tps, ttft: metrics.ttft, tokenCount: metrics.tokenCount,
+          }),
+          onDone: (trust, metrics) => {
+            updateMessage(activeChat.id, errorMsgId, {
+              streaming: false, trust,
+              tps: metrics.tps, ttft: metrics.ttft, tokenCount: metrics.tokenCount,
+            });
+            setIsStreaming(false);
+          },
+          onError: (error) => {
+            updateMessage(activeChat.id, errorMsgId, {
+              content: `Error: ${error}`, streaming: false, error: true,
+            });
+            addToast(error);
+            setIsStreaming(false);
+          },
+        },
+        abort.signal
+      ).catch((err) => {
+        if ((err as Error).name !== "AbortError") {
+          updateMessage(activeChat.id, errorMsgId, {
+            content: `Connection error: ${(err as Error).message}`,
+            streaming: false, error: true,
+          });
+        }
+        setIsStreaming(false);
+      });
+    },
+    [activeChat, isStreaming, authenticated, apiKeyReady, selectedModel, updateMessage, appendToMessage, appendToThinking, addToast]
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      <TopBar title="Chat" />
+
+      {!authenticated ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-lg px-6">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <PonsbloomMark size={36} />
+              <h2 className="text-5xl text-ink" style={{ fontFamily: "'Louize', Georgia, serif", letterSpacing: "-0.03em" }}>
+                Ponsbloom
+              </h2>
+            </div>
+            <div className="flex justify-center mb-6">
+              <span className="px-2 py-0.5 rounded-md bg-accent-brand/15 border border-accent-brand/30 text-accent-brand text-[10px] font-mono font-bold uppercase tracking-wider">
+                Beta
+              </span>
+            </div>
+            <p className="text-base text-text-secondary mb-8 leading-relaxed">
+              Private inference on verified hardware.
+              <br />
+              <span className="text-text-tertiary">Your prompts stay encrypted, your data stays yours.</span>
+            </p>
+
+            <button
+              onClick={login}
+              disabled={!ready}
+              className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg
+                         bg-coral text-bg-primary font-bold text-sm
+                         hover:opacity-90
+                         disabled:opacity-40 disabled:cursor-not-allowed
+                         transition-all focus-ring"
+            >
+              <Mail size={15} />
+              {!ready ? "Loading..." : "Continue with Email"}
+            </button>
+
+            <p className="mt-3 text-xs text-text-tertiary">
+              Sign in with email to provision your API key
+            </p>
+
+            <p className="mt-10 text-xs font-mono text-text-tertiary tracking-wide">
+              End-to-end encrypted · Apple Silicon · Decentralized
+            </p>
+          </div>
+        </div>
+      ) : !activeChat || activeChat.messages.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-lg px-6">
+            <h2
+              className="text-3xl sm:text-4xl text-ink mb-3"
+              style={{ fontFamily: "'Louize', Georgia, serif", letterSpacing: "-0.03em" }}
+            >
+              What are you working on?
+            </h2>
+            <p className="text-sm text-text-tertiary mb-10">
+              Choose a model and start a private conversation.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-10">
+              {SUGGESTED_PROMPTS.map(({ label, prompt }) => (
+                <button
+                  key={label}
+                  onClick={() => handleSend(prompt)}
+                  className="text-left px-4 py-3 rounded-lg bg-bg-secondary/60
+                             text-sm text-text-secondary hover:text-text-primary
+                             hover:bg-bg-secondary transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-xs font-mono text-text-tertiary tracking-wide">
+              End-to-end encrypted · Apple Silicon · Decentralized
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div className="space-y-1">
+            {activeChat.messages.map((msg, idx) => {
+              const isLastAssistant =
+                msg.role === "assistant" &&
+                !msg.streaming &&
+                idx === activeChat.messages.length - 1;
+              return (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  onRetry={
+                    (msg.error || isLastAssistant) && !isStreaming
+                      ? () => handleRetry(msg.id)
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+          <div className="h-4" />
+        </div>
+      )}
+
+      {authenticated && <InviteCodeBanner />}
+
+      <PreSendTrustBanner
+        visible={authenticated && (!activeChat || activeChat.messages.length === 0)}
+      />
+
+      <ChatInput
+        onSend={handleSend}
+        onStop={handleStop}
+        isStreaming={isStreaming}
+        authenticated={authenticated}
+        onLogin={login}
+      />
+    </div>
+  );
+}

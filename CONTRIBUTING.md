@@ -1,158 +1,134 @@
-# Contributing to Ponsbloom
+# Contributing to Ponsbloom (d-inference)
 
-Thank you for your interest in contributing! Ponsbloom is an open-source project and we welcome contributions of all kinds — bug fixes, new features, documentation improvements, and community support.
+Thanks for your interest in contributing. Ponsbloom is an experimental, build-in-public project — we welcome bug reports, feature ideas, docs improvements, and code contributions.
 
----
+This guide covers what you need to know before opening an issue or PR.
 
-## Table of Contents
+## Ways to contribute
 
-- [Code of Conduct](#code-of-conduct)
-- [Reporting Bugs](#reporting-bugs)
-- [Requesting Features](#requesting-features)
-- [Good First Issues](#good-first-issues)
-- [Pull Request Process](#pull-request-process)
-- [Code Style](#code-style)
-- [Development Setup](#development-setup)
+- **File a bug** — see [issue templates](https://github.com/Layr-Labs/d-inference/issues/new/choose).
+- **Propose a feature** — open a feature request first so we can scope it together. Surprise PRs that touch protocol, billing, or attestation are likely to bounce.
+- **Pick up a `good first issue`** — see the [open list](https://github.com/Layr-Labs/d-inference/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Comment on the issue to claim it before starting.
+- **Improve docs** — small docs PRs are always welcome and don't need pre-discussion.
+- **Report a vulnerability** — do **not** open a public issue. Use [GitHub Security Advisories](https://github.com/Layr-Labs/d-inference/security/advisories/new).
 
----
+## Project tracking
 
-## Code of Conduct
+- **[Roadmap board](https://github.com/orgs/Layr-Labs/projects/25)** — what's planned, in flight, and done. Filter by `Component` or `Priority`.
+- **[Milestones](https://github.com/Layr-Labs/d-inference/milestones)** — what's targeted for each release (e.g. `v0.3.6`, `v0.4.0`). Every PR/issue should have a milestone if it's intended for a specific release.
+- **Labels** — `area:*` for component, `bug` / `enhancement` / `security` for type, `good first issue` / `help wanted` for contributor guidance.
 
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) Code of Conduct. By participating you agree to uphold a welcoming and respectful environment.
+## Project layout
 
----
+See [CLAUDE.md](CLAUDE.md) for the full layout and architectural decisions. The short version:
 
-## Reporting Bugs
+| Directory | Stack | What it is |
+|-----------|-------|------------|
+| `coordinator/` | Go | Central matchmaking server (runs on Ponsbloom Cloud / GCP) |
+| `provider/` | Rust | Hardened daemon on Apple Silicon Macs |
+| `console-ui/` | Next.js 16 / React 19 | Web app (chat, billing, models) |
+| `app/Ponsbloom/` | Swift / SwiftUI | macOS menu bar app for providers |
+| `enclave/` | Swift | Secure Enclave attestation helper |
+| `image-bridge/` | Python / FastAPI | Image generation backend adapter |
 
-Before opening a bug report, please:
-
-1. Search [existing issues](https://github.com/ponsbloom/ponsbloom/issues) to avoid duplicates.
-2. Confirm you're running the latest version of the affected component.
-3. Collect logs — `ponsbloom provider logs --tail 100` for provider issues.
-
-Use the **Bug Report** issue template and fill out every section. Incomplete reports are closed.
-
----
-
-## Requesting Features
-
-Open a **Feature Request** issue. Describe:
-
-- The problem you're trying to solve (not just the proposed solution).
-- Who benefits and how.
-- Any prior art or references.
-
-Large features benefit from a short design doc before implementation begins. Drop a draft in a GitHub Discussion and tag a maintainer.
-
----
-
-## Good First Issues
-
-Issues tagged [`good first issue`](https://github.com/ponsbloom/ponsbloom/labels/good%20first%20issue) are curated for newcomers. They include a scope description, pointers to relevant files, and a definition of done. Comment on the issue before starting so we can assign it and avoid duplicated effort.
-
----
-
-## Pull Request Process
-
-1. **Fork** the repo and create a feature branch from `main`:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-2. **Write tests** before or alongside your changes. PRs without tests for new behavior are unlikely to be merged.
-
-3. **Run CI locally** before pushing:
-   ```bash
-   # Coordinator (Go)
-   cd coordinator && go test ./... && go vet ./...
-
-   # Provider (Rust)
-   cd provider && cargo test && cargo clippy -- -D warnings
-
-   # Console UI (Next.js)
-   cd console-ui && npm ci && npm run lint && npm test
-   ```
-
-4. **Open a draft PR** early if you want feedback before it's ready.
-
-5. **Fill out the PR template** completely. Incomplete PRs are not reviewed.
-
-6. Address all review comments. Once approved by a maintainer, your PR will be squash-merged into `main`.
-
-7. **Do not** push directly to `main`. All changes go through PRs.
-
----
-
-## Code Style
-
-### Go (`coordinator`)
-
-- `gofmt` and `goimports` — enforced in CI.
-- Follow [Effective Go](https://go.dev/doc/effective_go) conventions.
-- Exported symbols must have doc comments.
-- Error handling: return errors; do not panic in library code.
-
-### Rust (`provider`)
-
-- `rustfmt` — enforced in CI.
-- `clippy` with `-- -D warnings` must pass.
-- Use `thiserror` for library errors, `anyhow` for binary entry-points.
-- `unsafe` blocks require a `// SAFETY:` comment.
-
-### TypeScript (`console-ui`)
-
-- ESLint + Prettier — enforced in CI.
-- Prefer functional components and React hooks.
-- No `any` without a `// eslint-disable` comment explaining why.
-
-### Python (`image-bridge`)
-
-- `black` + `ruff` — enforced in CI.
-- Type-annotate all public functions.
-- Docstrings for public modules and functions.
-
----
-
-## Development Setup
+## Development setup
 
 ### Prerequisites
 
-| Tool | Minimum version |
-|---|---|
-| Go | 1.22 |
-| Rust | 1.78 (stable) |
-| Node.js | 20 LTS |
-| Python | 3.11 |
-| macOS (for `enclave` / `provider`) | 13 Ventura |
+- macOS on Apple Silicon (M1+) for full provider/app development; the coordinator and console UI can be developed on any platform.
+- Go 1.22+, Rust (stable), Node 20+, Python 3.11+, Swift 5.9+ (Xcode 15+).
+- A working `git` config with `user.name` and `user.email`.
 
-### Clone and bootstrap
+### First-time clone
 
 ```bash
-git clone https://github.com/ponsbloom/ponsbloom.git
-cd ponsbloom
+git clone git@github.com:Layr-Labs/d-inference.git
+cd d-inference
+git config core.hooksPath .githooks   # enables pre-commit + pre-push checks
+```
 
+### Per-component build & test
+
+```bash
 # Coordinator
-cd coordinator && go mod download && cd ..
+cd coordinator && go test ./...
 
 # Provider
-cd provider && cargo fetch && cd ..
+cd provider && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test
 
 # Console UI
-cd console-ui && npm ci && cd ..
+cd console-ui && npm install && npm test && npx eslint src/
 
-# Image Bridge
-cd image-bridge && pip install -e ".[dev]" && cd ..
+# macOS app
+cd app/Ponsbloom && swift test
+
+# Enclave helper
+cd enclave && swift test
+
+# Image bridge
+cd image-bridge && python3 -m venv .venv && source .venv/bin/activate \
+  && pip install -r requirements.txt pytest httpx && PYTHONPATH=. pytest
 ```
 
-### Running tests
+## Workflow
 
-```bash
-make test          # runs all component test suites
-make lint          # runs all linters
-```
+1. **Find or open an issue.** For non-trivial work, get rough alignment in the issue before writing code.
+2. **Fork the repo** (external contributors) or **create a branch** (members) named `<type>/<short-slug>`, e.g. `fix/provider-restart-loop`, `feat/console-ui-billing-export`, `docs/contributing-guide`.
+3. **Make your change.** Keep PRs focused — one logical change per PR. Avoid drive-by refactors.
+4. **Add tests.** See "Testing" below.
+5. **Run checks locally.** `git push` runs the pre-push hook which formats + builds + tests changed components.
+6. **Open a PR** using the template. Fill in the test plan and link the issue with `Closes #N`.
+7. **Set the milestone** if the change targets a specific release.
+8. **Address review feedback** with new commits (don't force-push your branch while review is in flight — it makes review threads hard to follow).
 
----
+## Testing
 
-## Questions?
+Every non-trivial change ships with tests. From `CLAUDE.md`:
 
-Open a [GitHub Discussion](https://github.com/ponsbloom/ponsbloom/discussions) or reach out on X at [@Ponsbloom](https://x.com/Ponsbloom).
+- **Prefer live-isolated tests over mocks.** Real in-process servers, real test databases, real HTTP roundtrips. Mocks hide protocol drift.
+- **Never point tests at production.** No live coordinator, no prod DB, no real wallets.
+- **Cover both impls when a feature spans backends** (e.g. `store.Store` memory + postgres).
+- **Test the real HTTP path.** Use `httptest.NewServer` for new endpoints.
+- **Frontend features need frontend tests.** Vitest for components; for UI that can't be unit-tested, exercise it in a browser before declaring done.
+- **Every bug fix gets a regression test** that fails without the fix.
+
+## Code style
+
+- **Go**: `gofmt` (enforced by the pre-commit hook).
+- **Rust**: `cargo fmt` (enforced).
+- **TypeScript**: ESLint clean (`npx eslint src/` from `console-ui/`).
+- **Swift**: no enforced formatter; match the surrounding file.
+- **Python**: PEP 8, 4-space indent, type hints encouraged.
+
+Comments: explain *why*, not *what*. Don't add comments that just restate what the code does.
+
+## Commit and PR conventions
+
+- Use short, imperative commit subjects: `Add provider doctor check for SIP state`, not `Adding stuff`.
+- One commit per logical change is ideal but not required.
+- Don't include external IPs, internal hostnames, or secrets in code, comments, screenshots, or commit messages.
+
+## Protocol changes
+
+Several surfaces have to stay in sync. If you touch one, check the others:
+
+- **WebSocket protocol**: `provider/src/protocol.rs` (Rust) ↔ `coordinator/internal/protocol/messages.go` (Go).
+- **Provider bundle**: `scripts/build-bundle.sh`, `scripts/install.sh`, the Swift app launcher, and `LatestProviderVersion` in `coordinator/internal/api/server.go`.
+- **Image generation**: coordinator consumer/provider handlers + provider proxying + `image-bridge/`.
+- **Device linking**: coordinator device auth endpoints + provider `login`/`logout` commands.
+
+The PR template will prompt you about this.
+
+## Release cadence
+
+Releases are cut by maintainers, not contributors. Don't bump versions or create tags in your PR — the release workflow handles that. If your change should land in a specific upcoming release, set the milestone on the PR.
+
+See `CLAUDE.md` "Releases" for the full release procedure.
+
+## Code of conduct
+
+Be respectful. Disagree with ideas, not people. Maintainers reserve the right to remove comments, close issues, and block users that don't engage constructively.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the same license as the project.

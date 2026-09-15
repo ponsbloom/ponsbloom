@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0A0A0A">
+  <title>Ponsbloom — Documentation</title>
+  <meta name="description" content="Ponsbloom documentation: API reference, provider setup, and attestation verification.">
+  <link rel="icon" href="assets/logos/apple.svg" type="image/svg+xml">
+  <style>
+    @font-face { font-family: 'ABC Repro'; src: url('fonts/ABCRepro-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'ABC Repro'; src: url('fonts/ABCRepro-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'ABC Repro'; src: url('fonts/ABCRepro-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'ABC Repro Mono'; src: url('fonts/ABCReproMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Louize'; src: url('fonts/Louize-Regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
+
+    :root {
+      --bg: #0A0A0A; --bg-1: #111111; --bg-2: #171717; --bg-3: #1C1C1C;
+      --ink: #FFFFFF; --ink-2: #A3A3A3; --ink-3: #6B6B6B;
+      --line: #222222; --line-2: #2E2E2E;
+      --font-sans: 'ABC Repro', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'ABC Repro Mono', 'IBM Plex Mono', monospace;
+      --font-logo: 'Louize', Georgia, serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-sans); background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    ::selection { background: #FFF; color: #0A0A0A; }
+    a { color: inherit; text-decoration: none; }
+
+    header { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,10,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+    .wordmark { font-family: var(--font-logo); font-size: 19px; }
+    .nav-right { display: flex; align-items: center; gap: 24px; }
+    .nav-right a { font-size: 13px; color: var(--ink-2); }
+    .nav-right a:hover { color: var(--ink); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; padding: 9px 18px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+    .btn-solid { background: var(--ink); color: #0A0A0A; font-weight: 700; }
+    .btn-solid:hover { background: #D4D4D4; }
+
+    .layout { display: grid; grid-template-columns: 230px 1fr; max-width: 1240px; margin: 0 auto; padding: 96px 24px 80px; gap: 48px; }
+    aside { position: sticky; top: 88px; align-self: start; max-height: calc(100vh - 110px); overflow-y: auto; }
+    aside .grp { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin: 26px 0 10px; }
+    aside .grp:first-child { margin-top: 0; }
+    aside a { display: block; font-size: 13.5px; color: var(--ink-2); padding: 5px 0 5px 14px; border-left: 1px solid var(--line); transition: all .12s; }
+    aside a:hover, aside a.on { color: var(--ink); border-left-color: var(--ink); }
+
+    main { min-width: 0; }
+    .doc-sec { padding-bottom: 64px; margin-bottom: 64px; border-bottom: 1px solid var(--line); }
+    .doc-sec:last-child { border-bottom: none; }
+    .kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+    h1 { font-family: var(--font-logo); font-weight: 400; font-size: clamp(30px, 4vw, 42px); letter-spacing: -0.015em; margin-bottom: 14px; }
+    h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 44px 0 14px; }
+    h3 { font-size: 15.5px; font-weight: 700; margin: 28px 0 10px; }
+    p { color: var(--ink-2); font-size: 15px; margin-bottom: 14px; max-width: 720px; }
+    li { color: var(--ink-2); font-size: 15px; margin: 6px 0 6px 20px; }
+    code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 5px; padding: 1.5px 6px; color: var(--ink); }
+    .lede { font-size: 16.5px; color: var(--ink-2); max-width: 640px; }
+
+    .code-block { background: #050505; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; margin: 18px 0 24px; }
+    .code-bar { display: flex; align-items: center; gap: 6px; padding: 11px 16px; border-bottom: 1px solid var(--line); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #2E2E2E; }
+    .code-lang { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+    pre { padding: 18px 20px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+    pre .c { color: #575757; }
+    pre .k { color: #FFF; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0 24px; }
+    th { text-align: left; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); padding: 12px 14px; border-bottom: 1px solid var(--line-2); }
+    td { padding: 13px 14px; border-bottom: 1px solid var(--line); color: var(--ink-2); vertical-align: top; }
+    td:first-child { color: var(--ink); }
+    td code { white-space: nowrap; }
+
+    .note { border: 1px solid var(--line-2); border-left: 2px solid var(--ink); background: var(--bg-1); border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 18px 0; max-width: 720px; }
+    .note p { margin: 0; font-size: 14px; }
+
+    footer { border-top: 1px solid var(--line); padding: 36px 0; }
+    .foot { display: flex; justify-content: space-between; align-items: center; max-width: 1240px; margin: 0 auto; padding: 0 24px; flex-wrap: wrap; gap: 20px; }
+    .foot .mono { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a class="wordmark" href="index.html">Ponsbloom</a>
+    <div class="nav-right">
+      <a href="index.html">Home</a>
+      <a href="#api">API</a>
+      <a href="#providers">Providers</a>
+      <a href="#security">Security</a>
+      <a class="btn btn-solid" href="https://app.ponsbloom.com">Open Console</a>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="grp">Getting started</div>
+    <a href="#intro">Overview</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#api">API reference</a>
+    <div class="grp">Endpoints</div>
+    <a href="#chat">Chat completions</a>
+    <a href="#messages">Anthropic messages</a>
+    <a href="#transcribe">Transcription</a>
+    <a href="#models-endpoint">Models</a>
+    <a href="#pricing-api">Pricing</a>
+    <div class="grp">Providers</div>
+    <a href="#providers">Become a provider</a>
+    <a href="#scheduling">Scheduling</a>
+    <a href="#trust">Trust levels</a>
+    <div class="grp">Reference</div>
+    <a href="#security">Security model</a>
+    <a href="#architecture">Architecture</a>
+  </aside>
+
+  <main>
+
+    <div class="doc-sec" id="intro">
+      <div class="kicker">Getting started</div>
+      <h1>Ponsbloom Documentation</h1>
+      <p class="lede">
+        Ponsbloom is a decentralized private inference network running on
+        hardware-attested Apple Silicon. This guide covers the consumer API,
+        running inference, and earning as a provider.
+      </p>
+      <div class="note">
+        <p><strong>Research preview.</strong> Ponsbloom is under active development and has not been audited. Expect rough edges, breaking changes, and downtime. Use for testing, not production.</p>
+      </div>
+    </div>
+
+    <div class="doc-sec" id="quickstart">
+      <div class="kicker">Getting started</div>
+      <h2>Quickstart</h2>
+      <p>
+        The API is [OI]-compatible — any [OI] SDK works by changing the base URL.
+        Get an API key from the <a href="https://app.ponsbloom.com" style="color:var(--ink); text-decoration:underline;">console</a> after signing in.
+      </p>
+      <div class="code-block">
+        <div class="code-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="code-lang">python</span></div>
+<pre><span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+client = OpenAI(
+    base_url=<span class="k">"https://api.darkbloom.dev/v1"</span>,
+    api_key=<span class="k">"$PONSBLOOM_API_KEY"</span>,
+)
+
+resp = client.chat.completions.create(
+    model=<span class="k">"google/gemma-4-26b-8bit"</span>,
+    messages=[{<span class="k">"role"</span>: <span class="k">"user"</span>, <span class="k">"content"</span>: <span class="k">"Explain zero-knowledge proofs"</span>}],
+)
+print(resp.choices[0].message.content)</pre>
+      </div>
+    </div>
+
+    <div class="doc-sec" id="api">
+      <div class="kicker">API reference</div>
+      <h2>Endpoints</h2>
+      <p>All endpoints require a bearer API key. Base URL: <code>https://api.darkbloom.dev</code></p>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST</code></td><td><code>/v1/chat/completions</code></td><td>[OI]-compatible chat, streaming supported</td></tr>
+          <tr><td><code>POST</code></td><td><code>/v1/completions</code></td><td>Text completions</td></tr>
+          <tr><td><code>POST</code></td><td><code>/v1/messages</code></td><td>Anthropic Messages API compatible</td></tr>
+          <tr><td><code>POST</code></td><td><code>/v1/audio/transcriptions</code></td><td>Speech-to-text (Cohere Transcribe)</td></tr>
+          <tr><td><code>POST</code></td><td><code>/v1/images/generations</code></td><td>Image generation (FLUX.2 Klein)</td></tr>
+          <tr><td><code>GET</code></td><td><code>/v1/models</code></td><td>List available models</td></tr>
+          <tr><td><code>GET</code></td><td><code>/v1/pricing</code></td><td>Per-model pricing</td></tr>
+          <tr><td><code>GET</code></td><td><code>/v1/providers/attestation</code></td><td>Public attestation feed</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="chat">Chat completions</h3>
+      <div class="code-block">
+        <div class="code-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="code-lang">bash</span></div>
+<pre>curl https://api.darkbloom.dev/v1/chat/completions \
+  -H <span class="k">"Authorization: Bearer $PONSBLOOM_API_KEY"</span> \
+  -H <span class="k">"Content-Type: application/json"</span> \
+  -d <span class="k">'{"model": "google/gemma-4-26b-8bit", "messages": [{"role": "user", "content": "Hi"}], "stream": true}'</span></pre>
+      </div>
+      <p>Streaming responses include trust metadata — the attestation state of the provider that served each request.</p>
+
+      <h3 id="messages">Anthropic Messages</h3>
+      <p>The Anthropic Messages API is supported at <code>/v1/messages</code> with the same request/response shape, so existing Anthropic SDKs work with a base-URL change.</p>
+
+      <h3 id="transcribe">Transcription</h3>
+      <p>Upload audio to <code>/v1/audio/transcriptions</code> (multipart). Served by Cohere Transcribe 03-2026, a 2B conformer model.</p>
+
+      <h3 id="models-endpoint">Models</h3>
+      <p><code>GET /v1/models</code> returns the curated catalog. Models are only listed after coordinator verification.</p>
+
+      <h3 id="pricing-api">Pricing</h3>
+      <p><code>GET /v1/pricing</code> returns per-model input/output rates. See the <a href="index.html#pricing" style="color:var(--ink); text-decoration:underline;">pricing table</a> for current rates.</p>
+    </div>
+
+    <div class="doc-sec" id="providers">
+      <div class="kicker">Providers</div>
+      <h2>Become a provider</h2>
+      <p>
+        Earn by serving inference on your idle Mac. Requirements: an Apple
+        Silicon Mac with at least 36 GB unified memory (depending on the model
+        you serve), macOS with SIP enabled.
+      </p>
+      <h3>Install</h3>
+      <p>Zero prerequisites — the installer bundles the provider binary, Python 3.12 runtime, vllm-mlx, ffmpeg, and Secure Enclave tooling:</p>
+      <div class="code-block">
+        <div class="code-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="code-lang">bash</span></div>
+<pre><span class="c"># From the release page or the console's Providers tab</span>
+curl -fsSL https://api.darkbloom.dev/install.sh | bash
+
+<span class="c"># Pick a model from the catalog, link your account:</span>
+ponsbloom login
+ponsbloom models
+ponsbloom start</pre>
+      </div>
+      <p>A native SwiftUI menu bar app is also available with status, scheduling, model management, diagnostics, and earnings.</p>
+
+      <h3 id="scheduling">Scheduling</h3>
+      <p>
+        Configure availability windows so the provider only runs when your Mac
+        is idle. Outside scheduled hours the backend shuts down and GPU memory
+        is freed. Configured in the app or directly in
+        <code>~/.config/ponsbloom/provider.toml</code>.
+      </p>
+
+      <h3 id="trust">Trust levels</h3>
+      <table>
+        <thead><tr><th>Level</th><th>Name</th><th>Verification</th></tr></thead>
+        <tbody>
+          <tr><td><code>self_signed</code></td><td>Self-Attested</td><td>Secure Enclave signature + periodic challenge-response</td></tr>
+          <tr><td><code>hardware</code></td><td>Hardware-Attested</td><td>MDA certificate chain from Apple Enterprise Attestation Root CA</td></tr>
+        </tbody>
+      </table>
+      <p>Attestation data for every provider is public at <code>GET /v1/providers/attestation</code>.</p>
+    </div>
+
+    <div class="doc-sec" id="security">
+      <div class="kicker">Reference</div>
+      <h2>Security model</h2>
+      <p>Ponsbloom prevents anyone — including providers — from reading consumer prompts:</p>
+      <table>
+        <thead><tr><th>Layer</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>E2E encryption</td><td>Coordinator encrypts requests with the provider&rsquo;s X25519 key before forwarding; only the hardened provider process decrypts</td></tr>
+          <tr><td>Hardened Runtime + SIP</td><td>Blocks debugger attachment, memory reads, code injection</td></tr>
+          <tr><td>Secure Enclave attestation</td><td>Hardware-bound P-256 identity, signed attestation blobs</td></tr>
+          <tr><td>Binary hash verification</td><td>Coordinator verifies the provider runs a blessed binary</td></tr>
+          <tr><td>Challenge-response</td><td>SIP / Secure Boot re-verified every 5 minutes</td></tr>
+          <tr><td>MDM SecurityInfo</td><td>Cross-checks hardware integrity (SIP, Secure Boot, FileVault)</td></tr>
+          <tr><td>MDA certificate chain</td><td>Optional Apple Enterprise Attestation Root CA verification</td></tr>
+          <tr><td>Hypervisor isolation</td><td>Stage 2 page-table memory isolation</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The residual threat — physically probing memory chips soldered into the
+        SoC — is the same one Apple accepts for Private Cloud Compute.
+      </p>
+    </div>
+
+    <div class="doc-sec" id="architecture">
+      <div class="kicker">Reference</div>
+      <h2>Architecture</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Language</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>Coordinator</td><td>Go</td><td>Control plane: routing, attestation, billing, API</td></tr>
+          <tr><td>Provider</td><td>Rust</td><td>Inference agent: security, attestation, WebSocket client</td></tr>
+          <tr><td>Console</td><td>Next.js</td><td>Web dashboard: chat, billing, provider verification</td></tr>
+          <tr><td>macOS app</td><td>SwiftUI</td><td>Menu bar app: status, scheduling, earnings</td></tr>
+          <tr><td>Secure Enclave</td><td>Swift</td><td>Hardware-bound P-256 identity</td></tr>
+          <tr><td>Image bridge</td><td>Python</td><td>Draw Things gRPC integration for FLUX models</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Providers connect outbound over WebSocket — no port forwarding needed.
+        The coordinator encrypts each request with the provider&rsquo;s X25519 public
+        key before forwarding it.
+      </p>
+    </div>
+
+  </main>
+</div>
+
+<footer>
+  <div class="foot">
+    <span class="foot-mono mono">Ponsbloom — an Ponsbloom research project</span>
+    <div style="display:flex; gap:22px;">
+      <a href="index.html" style="font-size:13px; color:var(--ink-3);">Home</a>
+      <a href="privacy.html" style="font-size:13px; color:var(--ink-3);">Privacy</a>
+      <a href="terms.html" style="font-size:13px; color:var(--ink-3);">Terms</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // highlight active section in the side nav
+  const links = [...document.querySelectorAll('aside a')];
+  const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const io = new IntersectionObserver((es) => {
+    es.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id));
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  secs.forEach(s => io.observe(s));
+</script>
+</body>
+</html>

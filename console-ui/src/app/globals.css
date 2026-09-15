@@ -1,0 +1,423 @@
+@import "tailwindcss";
+
+button, a, [role="button"], summary { cursor: pointer; }
+
+/* ==================== BRAND FONTS (Ponsbloom Cloud Brand Book v1.0) ==================== */
+@font-face { font-family: 'ABC Repro'; src: url('/fonts/ABCRepro-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Repro'; src: url('/fonts/ABCRepro-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Repro'; src: url('/fonts/ABCRepro-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Repro Mono'; src: url('/fonts/ABCReproMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/IBMPlexMono-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/IBMPlexMono-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Louize'; src: url('/fonts/Louize-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Louize'; src: url('/fonts/Louize-Italic.otf') format('opentype'); font-weight: 400; font-style: italic; font-display: swap; }
+
+/* ─── Light mode (opt-in) — premium light, indigo accent ─── */
+:root {
+  /* Backgrounds */
+  --bg-primary:     #FAFAF8;
+  --bg-secondary:   #F1F1EE;
+  --bg-tertiary:    #E9E9E6;
+  --bg-elevated:    #FFFFFF;
+  --bg-hover:       #EFEFEC;
+  --bg-white:       #FFFFFF;
+
+  /* Ink / Text */
+  --ink:            #14141A;
+  --ink-light:      #55555F;
+  --ink-faint:      #83838E;
+  --text-primary:   #14141A;
+  --text-secondary: #55555F;
+  --text-tertiary:  #83838E;
+
+  /* Borders */
+  --border-dim:     #E9E9E6;
+  --border-subtle:  #D9D9DE;
+  --border-default: #D9D9DE;
+
+  /* Brand accents — bloom teal primary */
+  --coral:          #3D7A68;
+  --coral-light:    rgba(61, 122, 104, 0.08);
+  --teal:           #1F9D6C;
+  --teal-light:     rgba(31, 157, 108, 0.10);
+  --teal-dark:      #16794F;
+  --blue:           #3B6FE0;
+  --blue-light:     rgba(59, 111, 224, 0.10);
+  --purple:         #7C5CD6;
+  --purple-light:   rgba(124, 92, 214, 0.10);
+  --gold:           #B07A18;
+  --gold-light:     rgba(176, 122, 24, 0.10);
+  --pink:           #C2498E;
+  --pink-light:     rgba(194, 73, 142, 0.10);
+
+  /* Semantic accents */
+  --accent-brand:       #3D7A68;
+  --accent-brand-dim:   rgba(61, 122, 104, 0.08);
+  --accent-brand-hover: #2D6054;
+  --accent-green:       #1F9D6C;
+  --accent-green-dim:   rgba(31, 157, 108, 0.10);
+  --accent-amber:       #B07A18;
+  --accent-amber-dim:   rgba(176, 122, 24, 0.10);
+  --accent-red:         #C44A42;
+  --accent-red-dim:     rgba(196, 74, 66, 0.10);
+  --danger:             #C44A42;
+
+  /* Shadows — soft, layered */
+  --shadow-sm:      0 1px 2px rgba(20, 20, 26, 0.05);
+  --shadow-md:      0 2px 6px rgba(20, 20, 26, 0.06);
+  --shadow-lg:      0 4px 16px rgba(20, 20, 26, 0.08);
+  --shadow-xl:      0 8px 28px rgba(20, 20, 26, 0.10);
+
+  /* Fonts — Ponsbloom Cloud Brand Book */
+  --font-display: 'ABC Repro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'ABC Repro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'ABC Repro Mono', 'IBM Plex Mono', monospace;
+  --font-logo: 'Louize', Georgia, serif;
+}
+
+/* ─── Dark mode (default) — Ponsbloom cool dark, indigo accent ───
+   Matches the official console's palette: near-black navy canvas,
+   indigo/periwinkle accent (not orange), teal-green for success states. */
+.dark {
+  --bg-primary:     #0B0B10;
+  --bg-secondary:   #131319;
+  --bg-tertiary:    #191922;
+  --bg-elevated:    #1E1E29;
+  --bg-hover:       #24242F;
+  --bg-white:       #15151D;
+
+  --ink:            #F2F2F5;
+  --ink-light:      #A3A3B0;
+  --ink-faint:      #6C6C79;
+  --text-primary:   #F2F2F5;
+  --text-secondary: #A3A3B0;
+  --text-tertiary:  #6C6C79;
+
+  --border-dim:     #1E1E29;
+  --border-subtle:  #2B2B38;
+  --border-default: #2B2B38;
+
+  --coral:          #A8C5B5;
+  --coral-light:    rgba(139, 140, 246, 0.12);
+  --teal:           #34D399;
+  --teal-light:     rgba(52, 211, 153, 0.14);
+  --teal-dark:      #6EE7B7;
+  --blue:           #7DA6F5;
+  --blue-light:     rgba(125, 166, 245, 0.12);
+  --purple:         #A78BFA;
+  --purple-light:   rgba(167, 139, 250, 0.12);
+  --gold:           #F5C563;
+  --gold-light:     rgba(245, 197, 99, 0.12);
+  --pink:           #F0A8D0;
+  --pink-light:     rgba(240, 168, 208, 0.12);
+
+  --accent-brand:       #A8C5B5;
+  --accent-brand-dim:   rgba(168, 197, 181, 0.12);
+  --accent-brand-hover: #C8DDD5;
+  --accent-green:       #34D399;
+  --accent-green-dim:   rgba(52, 211, 153, 0.14);
+  --accent-amber:       #F5C563;
+  --accent-amber-dim:   rgba(245, 197, 99, 0.12);
+  --accent-red:         #F0766E;
+  --accent-red-dim:     rgba(240, 118, 110, 0.14);
+  --danger:             #F0766E;
+
+  --shadow-sm:      0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md:      0 2px 6px rgba(0, 0, 0, 0.50);
+  --shadow-lg:      0 4px 12px rgba(0, 0, 0, 0.55);
+  --shadow-xl:      0 8px 24px rgba(0, 0, 0, 0.65);
+}
+
+/* ─── Tailwind theme bridge ─── */
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-white: var(--bg-white);
+  --color-border-dim: var(--border-dim);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-ink: var(--ink);
+  --color-ink-light: var(--ink-light);
+  --color-ink-faint: var(--ink-faint);
+  --color-coral: var(--coral);
+  --color-coral-light: var(--coral-light);
+  --color-teal: var(--teal);
+  --color-teal-light: var(--teal-light);
+  --color-teal-dark: var(--teal-dark);
+  --color-blue: var(--blue);
+  --color-blue-light: var(--blue-light);
+  --color-purple: var(--purple);
+  --color-purple-light: var(--purple-light);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-pink: var(--pink);
+  --color-pink-light: var(--pink-light);
+  --color-accent-brand: var(--accent-brand);
+  --color-accent-brand-dim: var(--accent-brand-dim);
+  --color-accent-brand-hover: var(--accent-brand-hover);
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-dim: var(--accent-green-dim);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-dim: var(--accent-amber-dim);
+  --color-accent-red: var(--accent-red);
+  --color-accent-red-dim: var(--accent-red-dim);
+  --color-danger: var(--danger);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --font-sans: 'ABC Repro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'ABC Repro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'ABC Repro Mono', 'IBM Plex Mono', monospace;
+  --font-logo: 'Louize', Georgia, serif;
+}
+
+/* ─── Scrollbars ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+*::-webkit-scrollbar { width: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);
+  border-radius: 3px;
+}
+
+/* ─── Base ─── */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Typography — Brand Book rules ─── */
+/* Headlines: Bold, tracking -2%, leading 100% */
+h1, h2, h3 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.0;
+}
+
+/* ─── Trust badge glow ─── */
+@keyframes trust-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(45, 158, 122, 0.2); }
+  50% { box-shadow: 0 0 14px rgba(45, 158, 122, 0.4); }
+}
+
+.trust-glow-hardware {
+  animation: trust-pulse 3s ease-in-out infinite;
+}
+
+/* ─── Streaming cursor blink ─── */
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+  content: '\25CA';
+  animation: cursor-blink 0.8s steps(1) infinite;
+  color: var(--accent-brand);
+  font-size: 0.85em;
+  margin-left: 1px;
+}
+
+/* ─── Markdown prose ─── */
+.prose pre {
+  background: #000 !important;
+  border: 1px solid var(--border-dim);
+  border-radius: 0 0 10px 10px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.88);
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-tertiary);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  color: var(--accent-brand);
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  color: rgba(255,255,255,0.88);
+}
+
+.prose p {
+  margin: 0.5em 0;
+  line-height: 1.7;
+}
+
+.prose ul, .prose ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.prose li {
+  margin: 0.25em 0;
+}
+
+.prose h1, .prose h2, .prose h3 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.prose a {
+  color: var(--accent-brand);
+  text-decoration: underline;
+  text-decoration-color: var(--border-subtle);
+  text-underline-offset: 2px;
+}
+
+.prose blockquote {
+  border-left: 2px solid var(--border-subtle);
+  padding-left: 1em;
+  color: var(--text-secondary);
+  margin: 0.5em 0;
+}
+
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.prose th, .prose td {
+  border: 1px solid var(--border-dim);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.prose th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+/* ─── Animations ─── */
+@keyframes message-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message-animate {
+  animation: message-enter 0.3s ease-out;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.sidebar-animate {
+  animation: slide-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* ─── Syntax highlighting — monochrome ─── */
+.hljs {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.hljs-keyword { color: #5EEAD4; }
+.hljs-string { color: #86EFAC; }
+.hljs-number { color: #F5C563; }
+.hljs-comment { color: var(--text-tertiary); font-style: italic; }
+.hljs-function { color: #7DD3FC; }
+.hljs-built_in { color: #F5C563; }
+.hljs-attr { color: #5EEAD4; }
+.hljs-title { color: #7DA6F5; }
+
+/* ─── Focus ring utility ─── */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 2px;
+}
+
+/* ─── Code block header ─── */
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #000;
+  border: 1px solid var(--border-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px 10px 0 0;
+}
+
+.code-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.code-dot-r { background: #FF5F57; }
+.code-dot-y { background: #FEBC2E; }
+.code-dot-g { background: #27C93F; }
+
+/* ─── Premium polish ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--ink-faint); }
+
+::selection {
+  background: var(--accent-brand);
+  color: var(--bg-primary);
+}
+
+button, a, [role="button"] {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.rounded-xl, .rounded-2xl, .rounded-lg {
+  transition-property: box-shadow, background-color, border-color, transform, color;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+html:not(.dark) .shadow-sm, html:not(.dark) [class*="shadow-sm"] {
+  box-shadow: 0 1px 2px rgba(20, 20, 26, 0.05), 0 1px 3px rgba(20, 20, 26, 0.04);
+}
+
+img { -webkit-user-drag: none; user-select: none; }

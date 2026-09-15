@@ -1,0 +1,643 @@
+name: Release Provider Bundle
+
+# Two release paths share this workflow:
+#   1. tag push `vX.Y.Z`       -> prod   (reviewer approval required)
+#   2. tag push `vX.Y.Z-dev.N` -> dev    (auto)
+#   3. manual workflow_dispatch with environment input (either)
+# The `environment:` on the job selects which GitHub Environment's secrets
+# and vars get injected, so prod and dev use disjoint R2 buckets, release
+# keys, and coordinator URLs.
+#
+# Phase-1 parallelism (vs. the monolithic pre-refactor workflow):
+#   - `coordinator-tests` runs on ubuntu-latest in parallel with the macOS
+#     build. That shaves ~1 min off the critical path AND frees up the
+#     macos-26-xlarge runner (which is expensive).
+#   - Rust `target/` + cargo registry cached on Cargo.lock. Cold Rust builds
+#     ~5 min; warm ~1 min.
+#   - Python runtime build (5+ min pip install) runs concurrently with Apple
+#     notarization (3-8 min, Apple-bound idle wait). Largest single win.
+#
+# Phase-2 (not yet done): split Python runtime + macOS app into their own
+# macOS jobs with artifact passing so they truly parallelize across runners.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+env:
+  CARGO_TERM_COLOR: always
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: '1'
+  DEVELOPER_ID: "Developer ID Application: the Ponsbloom contributors (SLDQ2GJ6TL)"
+  PBS_TAG: "20260408"
+  PBS_PYTHON_VERSION: "3.12.13"
+
+jobs:
+  # Resolve target environment from either workflow_dispatch input or tag shape.
+  # Dev tags look like `v0.3.6-dev.2`; prod tags are strict `v0.3.6`.
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.pick.outputs.environment }}
+    steps:
+      - id: pick
+        run: |
+          if [ -n "${{ inputs.environment }}" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == *-dev.* ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          else
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+  # Go tests run on ubuntu (much cheaper than macos-26-xlarge and ~10x faster
+  # to spin up). In parallel with the macOS build — if they fail the whole
+  # workflow fails.
+  coordinator-tests:
+    name: Test coordinator
+    needs: resolve-env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version-file: coordinator/go.mod
+          cache-dependency-path: coordinator/go.sum
+      - name: go test ./...
+        run: cd coordinator && go test -race ./...
+
+  build-and-release:
+    name: Build, Sign, Upload, Register
+    needs: [resolve-env, coordinator-tests]
+    environment: ${{ needs.resolve-env.outputs.environment }}
+    runs-on: macos-26-xlarge  # Apple Silicon, 16 cores
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # --- Import signing certificate ---
+
+      - name: Import Developer ID certificate
+        env:
+          P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          # Decode certificate
+          echo "$P12_BASE64" | base64 --decode > /tmp/cert.p12
+
+          # Create temporary keychain
+          security create-keychain -p "build" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "build" "$KEYCHAIN_PATH"
+
+          # Add to search list (critical — without this, codesign can't find the cert)
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Import certificate
+          security import /tmp/cert.p12 -k "$KEYCHAIN_PATH" \
+            -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -f pkcs12
+
+          # Allow codesign to access the keychain without UI prompt
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "build" "$KEYCHAIN_PATH"
+
+          # Verify identity is available
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Store path for later steps
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+          # Clean up
+          rm /tmp/cert.p12
+
+      # --- Build ---
+
+      - name: Prepare portable Python for provider build
+        run: |
+          curl -fsSL "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PBS_PYTHON_VERSION}+${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz" \
+            -o /tmp/build-python.tar.gz
+          rm -rf /tmp/ponsbloom-build-python
+          mkdir -p /tmp/ponsbloom-build-python
+          tar xzf /tmp/build-python.tar.gz --strip-components=1 -C /tmp/ponsbloom-build-python
+          rm -f /tmp/build-python.tar.gz
+          /tmp/ponsbloom-build-python/bin/python3.12 --version
+
+      # Cache Rust compilation outputs. Keyed on Cargo.lock so a dep bump
+      # invalidates. Saves ~4 min on warm builds (5 min cold → 1 min warm).
+      - name: Cache cargo registry + target
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/git/db
+            provider/target
+          key: cargo-v1-${{ runner.os }}-${{ hashFiles('provider/Cargo.lock') }}
+          restore-keys: |
+            cargo-v1-${{ runner.os }}-
+
+      - name: Build provider (Rust)
+        env:
+          PYO3_PYTHON: /tmp/ponsbloom-build-python/bin/python3.12
+          LIBRARY_PATH: /tmp/ponsbloom-build-python/lib
+          DYLD_LIBRARY_PATH: /tmp/ponsbloom-build-python/lib
+          RUSTFLAGS: -L native=/tmp/ponsbloom-build-python/lib
+          # Bake the target environment's coordinator URL + R2 CDN into the
+          # binary via provider/build.rs. A dev bundle physically cannot reach
+          # prod R2 or the prod coordinator.
+          PONSBLOOM_COORDINATOR_URL: ${{ secrets.COORDINATOR_URL }}
+          PONSBLOOM_R2_CDN_URL: ${{ vars.R2_CDN }}
+        run: |
+          cd provider
+          cargo build --release
+
+      - name: Build enclave (Swift)
+        run: |
+          cd enclave
+          swift build -c release
+
+      # Image generation support disabled — re-enable when ready
+      # - name: Build gRPCServerCLI (Draw Things)
+      #   run: |
+      #     git clone --depth 1 https://github.com/drawthingsai/draw-things-community.git /tmp/draw-things-community
+      #     cd /tmp/draw-things-community
+      #     swift build -c release --product gRPCServerCLI
+      #     cp .build/arm64-apple-macosx/release/gRPCServerCLI /tmp/gRPCServerCLI
+      #     echo "gRPCServerCLI built: $(du -h /tmp/gRPCServerCLI | cut -f1)"
+
+      # --- Test ---
+
+      - name: Test provider
+        env:
+          PYO3_PYTHON: /tmp/ponsbloom-build-python/bin/python3.12
+          LIBRARY_PATH: /tmp/ponsbloom-build-python/lib
+          DYLD_LIBRARY_PATH: /tmp/ponsbloom-build-python/lib
+          RUSTFLAGS: -L native=/tmp/ponsbloom-build-python/lib
+        run: cd provider && cargo test -- --skip proxy::tests --skip server::tests
+
+      # --- Sign & Bundle ---
+
+      - name: Sign binaries and create bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p /tmp/ponsbloom-bundle/bin /tmp/ponsbloom-bundle/python
+
+          cp provider/target/release/ponsbloom /tmp/ponsbloom-bundle/bin/
+          cp enclave/.build/release/ponsbloom-enclave /tmp/ponsbloom-bundle/bin/
+
+          # Copy stt_server.py
+          cp provider/stt_server.py /tmp/ponsbloom-bundle/bin/
+
+          # Bundle the signed Python core that hardened ponsbloom links against.
+          # Keep site-packages separate so broken installs can refresh libpython and
+          # stdlib native extensions without inflating every CLI bundle.
+          cp -R /tmp/ponsbloom-build-python/bin /tmp/ponsbloom-bundle/python/
+          cp -R /tmp/ponsbloom-build-python/lib /tmp/ponsbloom-bundle/python/
+          rm -rf /tmp/ponsbloom-bundle/python/lib/python3.12/site-packages
+
+          # Bundle ffmpeg (installed via Homebrew which verifies bottle checksums)
+          FFMPEG_BIN="$(brew --prefix ffmpeg 2>/dev/null)/bin/ffmpeg"
+          if [ ! -f "$FFMPEG_BIN" ]; then
+            brew install --quiet ffmpeg
+            FFMPEG_BIN="$(brew --prefix ffmpeg)/bin/ffmpeg"
+          fi
+          cp "$FFMPEG_BIN" /tmp/ponsbloom-bundle/bin/ffmpeg
+
+          PYTHON_LOAD_PATH=$(otool -L /tmp/ponsbloom-bundle/bin/ponsbloom | awk '/libpython3\.12\.dylib/ {print $1; exit}')
+          if [ -z "$PYTHON_LOAD_PATH" ]; then
+            echo "ERROR: could not find libpython linkage in ponsbloom"
+            exit 1
+          fi
+          install_name_tool -change \
+            "$PYTHON_LOAD_PATH" \
+            "@executable_path/../python/lib/libpython3.12.dylib" \
+            /tmp/ponsbloom-bundle/bin/ponsbloom
+
+          # Verify it's a real binary before signing
+          file "$FFMPEG_BIN" | grep -q "Mach-O" || { echo "ERROR: ffmpeg is not a Mach-O binary"; exit 1; }
+
+          # Code sign ffmpeg with our Developer ID for distribution
+          codesign --force --sign "$DEVELOPER_ID" \
+            --keychain "$KEYCHAIN_PATH" \
+            --options runtime \
+            --timestamp \
+            /tmp/ponsbloom-bundle/bin/ffmpeg
+          codesign --verify --verbose /tmp/ponsbloom-bundle/bin/ffmpeg
+
+          # Re-sign every Mach-O in the bundled Python tree with our Developer ID.
+          # python-build-standalone ships these ad-hoc (TeamIdentifier=not set) —
+          # which fails under hardened runtime because dyld refuses to load a
+          # dylib whose team doesn't match the process team. Sign them with our
+          # team ID so ponsbloom (hardened, Ponsbloom team) can load them.
+          # Retry-on-flake matches the Python runtime step's pattern.
+          sign_bundle_python() {
+            find /tmp/ponsbloom-bundle/python -type f | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                codesign --force --sign "$DEVELOPER_ID" \
+                  --keychain "$KEYCHAIN_PATH" \
+                  --options runtime \
+                  --timestamp \
+                  "$file" || return 1
+              fi
+            done
+          }
+          if ! sign_bundle_python; then
+            echo "bundle-Python codesign batch failed — retrying in 30s"
+            sleep 30
+            sign_bundle_python
+          fi
+
+          # Code sign with Developer ID (hardened runtime + entitlements)
+          codesign --force --sign "$DEVELOPER_ID" \
+            --keychain "$KEYCHAIN_PATH" \
+            --entitlements scripts/entitlements.plist \
+            --options runtime \
+            /tmp/ponsbloom-bundle/bin/ponsbloom
+
+          codesign --force --sign "$DEVELOPER_ID" \
+            --keychain "$KEYCHAIN_PATH" \
+            --entitlements scripts/entitlements.plist \
+            --options runtime \
+            /tmp/ponsbloom-bundle/bin/ponsbloom-enclave
+
+          # Verify all signatures
+          codesign --verify --verbose /tmp/ponsbloom-bundle/bin/ponsbloom
+          codesign --verify --verbose /tmp/ponsbloom-bundle/bin/ponsbloom-enclave
+          codesign --verify --verbose /tmp/ponsbloom-bundle/python/bin/python3.12
+          codesign --verify --verbose /tmp/ponsbloom-bundle/python/lib/libpython3.12.dylib
+
+          cd /tmp && tar czf ponsbloom-bundle-macos-arm64.tar.gz -C ponsbloom-bundle .
+          echo "Bundle created: $(du -h /tmp/ponsbloom-bundle-macos-arm64.tar.gz | cut -f1)"
+
+      # --- Parallel: notarize the bundle AND build the Python runtime ---
+      # Apple notarization is a 3-8 min synchronous wait on the remote service.
+      # Python runtime build is 5+ min of local work that doesn't touch the
+      # signed bundle. Running them in parallel cuts ~5 min off the critical path.
+      # Both need the keychain + PBS Python already set up above.
+
+      - name: Notarize bundle + build Python runtime (parallel)
+        id: runtime
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: "SLDQ2GJ6TL"
+        run: |
+          set -e
+
+          # ---- Task A: notarize the provider bundle (background) ----
+          notarize_bundle() {
+            ditto -c -k --keepParent /tmp/ponsbloom-bundle /tmp/ponsbloom-notarize.zip
+            xcrun notarytool submit /tmp/ponsbloom-notarize.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait --timeout 10m
+          }
+          notarize_bundle > /tmp/notarize.log 2>&1 &
+          NOTARIZE_PID=$!
+          echo "Started bundle notarization (pid $NOTARIZE_PID)"
+
+          # ---- Task B: build canonical Python runtime (foreground) ----
+          echo "Downloading portable Python ${PBS_PYTHON_VERSION}..."
+          curl -fsSL "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PBS_PYTHON_VERSION}+${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz" \
+            -o /tmp/pbs-python.tar.gz
+          tar xzf /tmp/pbs-python.tar.gz -C /tmp/
+          mv /tmp/python /tmp/ponsbloom-python
+          rm -f /tmp/pbs-python.tar.gz
+
+          curl -fsSL -o /tmp/vllm-mlx-source.zip \
+            'https://github.com/Gajesh2007/vllm-mlx/archive/refs/heads/main.zip'
+
+          /tmp/ponsbloom-python/bin/python3.12 -m pip install --upgrade pip --quiet
+          /tmp/ponsbloom-python/bin/python3.12 -m pip install --quiet --no-cache-dir \
+            'mlx-lm>=0.31.2' \
+            /tmp/vllm-mlx-source.zip \
+            grpcio flatbuffers soundfile mlx-audio tokenizers
+          /tmp/ponsbloom-python/bin/python3.12 -m pip install --quiet --no-cache-dir --upgrade 'mlx-lm>=0.31.2'
+
+          /tmp/ponsbloom-python/bin/python3.12 -c "import vllm_mlx; print(f'vllm-mlx {vllm_mlx.__version__}')"
+          /tmp/ponsbloom-python/bin/python3.12 -c "import mlx_lm; print(f'mlx-lm {mlx_lm.__version__}')"
+          /tmp/ponsbloom-python/bin/python3.12 -c "from vllm_mlx.server import app; print('vllm-mlx server imports OK')"
+
+          cd /tmp/ponsbloom-python/lib/python*/site-packages
+          rm -rf torch* gradio* opencv* cv2* pandas* pyarrow* \
+                 sympy* networkx* mcp* miniaudio* pydub* datasets*
+          find /tmp/ponsbloom-python -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+          find /tmp/ponsbloom-python -name "*.pyc" -delete 2>/dev/null || true
+          /tmp/ponsbloom-python/bin/python3.12 -m compileall -q /tmp/ponsbloom-python/lib/python3.12/site-packages/ 2>/dev/null || true
+          rm -f /tmp/ponsbloom-python/lib/python*/EXTERNALLY-MANAGED
+
+          # Sign libpython and extension modules (retry once on transient
+          # Apple timestamp failures — this is the exact failure mode that
+          # killed the first dev release).
+          sign_runtime_binaries() {
+            find /tmp/ponsbloom-python -type f | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                codesign --force --sign "$DEVELOPER_ID" \
+                  --keychain "$KEYCHAIN_PATH" \
+                  --options runtime \
+                  --timestamp \
+                  "$file" || return 1
+              fi
+            done
+          }
+          if ! sign_runtime_binaries; then
+            echo "codesign batch failed (likely Apple timestamp server blip) — retrying in 30s"
+            sleep 30
+            sign_runtime_binaries
+          fi
+          cd -
+
+          PYTHON_BIN="/tmp/ponsbloom-python/bin/python3.12"
+          PYTHON_HASH=$(shasum -a 256 "$PYTHON_BIN" | cut -d' ' -f1)
+          echo "Python hash: $PYTHON_HASH"
+
+          SITE_PACKAGES_DIR=$(/tmp/ponsbloom-python/bin/python3.12 -c "import site; print(site.getsitepackages()[0])")
+          echo "Hashing all files in: $SITE_PACKAGES_DIR"
+          RUNTIME_HASH=$(/tmp/ponsbloom-python/bin/python3 -c "
+          import hashlib, os, sys
+          d = sys.argv[1]
+          files = sorted(
+              os.path.join(r, f)
+              for r, _, fs in os.walk(d)
+              for f in fs
+          )
+          print(f'Total files: {len(files)}', file=sys.stderr)
+          final = hashlib.sha256()
+          for path in files:
+              h = hashlib.sha256()
+              with open(path, 'rb') as fh:
+                  while True:
+                      chunk = fh.read(65536)
+                      if not chunk:
+                          break
+                      h.update(chunk)
+              final.update(h.digest())
+          print(final.hexdigest())
+          " "$SITE_PACKAGES_DIR")
+          echo "Runtime hash (all site-packages): $RUNTIME_HASH"
+
+          cd /tmp && tar czf ponsbloom-python-macos-arm64.tar.gz -C ponsbloom-python .
+          cd /tmp && tar czf ponsbloom-site-packages.tar.gz -C "$SITE_PACKAGES_DIR" .
+
+          echo "python_hash=$PYTHON_HASH" >> "$GITHUB_OUTPUT"
+          echo "runtime_hash=$RUNTIME_HASH" >> "$GITHUB_OUTPUT"
+
+          # ---- Wait for Task A (notarization) and bail on failure ----
+          echo "Waiting for bundle notarization (pid $NOTARIZE_PID)..."
+          if ! wait "$NOTARIZE_PID"; then
+            echo "!! bundle notarization failed — log tail:"
+            tail -80 /tmp/notarize.log
+            exit 1
+          fi
+          echo "Bundle notarization complete. Log tail:"
+          tail -20 /tmp/notarize.log
+
+          # Staple the individual binaries (now that notarization ticket exists)
+          xcrun stapler staple /tmp/ponsbloom-bundle/bin/ponsbloom || true
+          xcrun stapler staple /tmp/ponsbloom-bundle/bin/ponsbloom-enclave || true
+          xcrun stapler staple /tmp/ponsbloom-bundle/bin/ffmpeg || true
+
+          # Recreate tarball with stapled binaries
+          cd /tmp && tar czf ponsbloom-bundle-macos-arm64.tar.gz -C ponsbloom-bundle .
+
+      # --- Compute post-signing hashes (bundle contents are final now) ---
+
+      - name: Compute hashes
+        id: hash
+        run: |
+          BINARY_HASH=$(shasum -a 256 /tmp/ponsbloom-bundle/bin/ponsbloom | cut -d' ' -f1)
+          BUNDLE_HASH=$(shasum -a 256 /tmp/ponsbloom-bundle-macos-arm64.tar.gz | cut -d' ' -f1)
+          FFMPEG_HASH=$(shasum -a 256 /tmp/ponsbloom-bundle/bin/ffmpeg | cut -d' ' -f1)
+          echo "binary_hash=$BINARY_HASH" >> "$GITHUB_OUTPUT"
+          echo "bundle_hash=$BUNDLE_HASH" >> "$GITHUB_OUTPUT"
+          echo "ffmpeg_hash=$FFMPEG_HASH" >> "$GITHUB_OUTPUT"
+          echo "grpc_binary_hash=" >> "$GITHUB_OUTPUT"
+          echo "image_bridge_hash=" >> "$GITHUB_OUTPUT"
+          echo "Binary hash (signed): $BINARY_HASH"
+          echo "Bundle hash: $BUNDLE_HASH"
+          echo "ffmpeg hash (signed): $FFMPEG_HASH"
+
+      # --- Upload everything to R2 in parallel ---
+
+      - name: Install AWS CLI
+        run: brew install awscli 2>/dev/null || true
+
+      - name: Upload artifacts to R2
+        id: upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_CDN: ${{ vars.R2_CDN }}
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          PREFIX="s3://${R2_BUCKET}/releases/v${VERSION}"
+          # Parallel uploads — independent keys, no ordering requirement.
+          aws s3 cp /tmp/ponsbloom-bundle-macos-arm64.tar.gz    "${PREFIX}/ponsbloom-bundle-macos-arm64.tar.gz"    --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          aws s3 cp /tmp/ponsbloom-python-macos-arm64.tar.gz    "${PREFIX}/ponsbloom-python-macos-arm64.tar.gz"    --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          aws s3 cp /tmp/ponsbloom-site-packages.tar.gz         "${PREFIX}/ponsbloom-site-packages.tar.gz"         --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          aws s3 cp /tmp/vllm-mlx-source.zip                         "${PREFIX}/vllm-mlx-source.zip"                         --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          wait
+          echo "All R2 uploads complete"
+
+          # Template hashes from the env's public R2 CDN
+          R2_CDN="${R2_CDN:-https://pub-7cbee059c80c46ec9c071dbee2726f8a.r2.dev}"
+          TEMPLATE_HASHES=""
+          for name in qwen3.5 trinity gemma4 minimax; do
+            HASH=$(curl -fsSL "$R2_CDN/templates/${name}.jinja" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+            if [ -n "$HASH" ] && [ "$HASH" != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]; then
+              [ -n "$TEMPLATE_HASHES" ] && TEMPLATE_HASHES+=","
+              TEMPLATE_HASHES+="${name}=${HASH}"
+              echo "Template $name: ${HASH:0:16}..."
+            fi
+          done
+          echo "template_hashes=$TEMPLATE_HASHES" >> "$GITHUB_OUTPUT"
+
+      # --- Build macOS App (DMG) — still sequential after notarized bundle ---
+
+      - name: Build macOS app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: "SLDQ2GJ6TL"
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd app/Ponsbloom
+          swift build -c release 2>&1 | tail -3
+          APP_BIN=$(swift build -c release --show-bin-path)/Ponsbloom
+          cd "$GITHUB_WORKSPACE"
+
+          APP_DIR="/tmp/Ponsbloom.app"
+          CONTENTS="$APP_DIR/Contents"
+          MACOS="$CONTENTS/MacOS"
+          RESOURCES="$CONTENTS/Resources"
+          PYTHON_ROOT="$CONTENTS/python"
+          rm -rf "$APP_DIR"
+          mkdir -p "$MACOS" "$RESOURCES" "$PYTHON_ROOT"
+
+          cat > "$CONTENTS/Info.plist" << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Ponsbloom</string>
+            <key>CFBundleDisplayName</key><string>Ponsbloom</string>
+            <key>CFBundleIdentifier</key><string>io.ponsbloom.provider</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundleExecutable</key><string>Ponsbloom</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
+            <key>LSMinimumSystemVersion</key><string>14.0</string>
+            <key>LSUIElement</key><true/>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+
+          cp "$APP_BIN" "$MACOS/Ponsbloom"
+          cp /tmp/ponsbloom-bundle/bin/ponsbloom "$MACOS/ponsbloom"
+          cp /tmp/ponsbloom-bundle/bin/ponsbloom-enclave "$MACOS/ponsbloom-enclave" 2>/dev/null || true
+          cp provider/stt_server.py "$RESOURCES/stt_server.py"
+          cp -a /tmp/ponsbloom-python/. "$PYTHON_ROOT/"
+
+          # Sign every Mach-O in the Python tree — retry once on Apple
+          # timestamp flakes.
+          sign_app_python() {
+            find "$PYTHON_ROOT" -type f | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                codesign --force --options runtime \
+                  --sign "$DEVELOPER_ID" --timestamp "$file" || return 1
+              fi
+            done
+          }
+          if ! sign_app_python; then
+            echo "app-Python codesign batch failed — retrying in 30s"
+            sleep 30
+            sign_app_python
+          fi
+
+          for bin in "$MACOS"/*; do
+            codesign --force --options runtime \
+              --entitlements scripts/entitlements.plist \
+              --sign "$DEVELOPER_ID" "$bin"
+          done
+          codesign --force --options runtime --no-strict \
+            --entitlements scripts/entitlements.plist \
+            --sign "$DEVELOPER_ID" "$APP_DIR"
+
+          DMG_TMP="/tmp/dmg-staging"
+          rm -rf "$DMG_TMP"
+          mkdir -p "$DMG_TMP"
+          cp -a "$APP_DIR" "$DMG_TMP/"
+          ln -s /Applications "$DMG_TMP/Applications"
+          hdiutil create -volname "Ponsbloom" -srcfolder "$DMG_TMP" \
+            -ov -format UDZO "/tmp/Ponsbloom.dmg" >/dev/null
+          rm -rf "$DMG_TMP"
+
+          xcrun notarytool submit "/tmp/Ponsbloom.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait || true
+          xcrun stapler staple "/tmp/Ponsbloom.dmg" || true
+
+          echo "DMG_SIZE=$(du -h /tmp/Ponsbloom.dmg | cut -f1)" >> $GITHUB_ENV
+          echo "DMG built: $(du -h /tmp/Ponsbloom.dmg | cut -f1)"
+
+      - name: Upload DMG to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          aws s3 cp /tmp/Ponsbloom.dmg "s3://${R2_BUCKET}/releases/v${VERSION}/Ponsbloom.dmg"      --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          aws s3 cp /tmp/Ponsbloom.dmg "s3://${R2_BUCKET}/releases/latest/Ponsbloom.dmg"           --endpoint-url "$R2_ENDPOINT" --only-show-errors &
+          wait
+          echo "DMG uploaded to R2: releases/v${VERSION}/Ponsbloom.dmg + releases/latest/Ponsbloom.dmg"
+
+      # --- Register with coordinator ---
+
+      - name: Register release with coordinator
+        env:
+          COORDINATOR_URL: ${{ secrets.COORDINATOR_URL }}
+          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE_URL="${R2_PUBLIC_URL}/releases/v${VERSION}/ponsbloom-bundle-macos-arm64.tar.gz"
+
+          TAG_MSG=$(git tag -l --format='%(contents:subject)%0a%(contents:body)' "$GITHUB_REF_NAME" 2>/dev/null || echo "")
+          if [ -z "$TAG_MSG" ] || [ "$TAG_MSG" = $'\n' ]; then
+            TAG_MSG="Release v${VERSION}"
+          fi
+
+          python3 -c "
+          import json, subprocess, sys
+          payload = {
+              'version': '${VERSION}',
+              'platform': 'macos-arm64',
+              'binary_hash': '${{ steps.hash.outputs.binary_hash }}',
+              'bundle_hash': '${{ steps.hash.outputs.bundle_hash }}',
+              'python_hash': '${{ steps.runtime.outputs.python_hash }}',
+              'runtime_hash': '${{ steps.runtime.outputs.runtime_hash }}',
+              'template_hashes': '${{ steps.upload.outputs.template_hashes }}',
+              'grpc_binary_hash': '${{ steps.hash.outputs.grpc_binary_hash }}',
+              'image_bridge_hash': '${{ steps.hash.outputs.image_bridge_hash }}',
+              'ffmpeg_hash': '${{ steps.hash.outputs.ffmpeg_hash }}',
+              'url': '${BUNDLE_URL}',
+              'changelog': '''${TAG_MSG}'''.strip()
+          }
+          print(json.dumps(payload))
+          " > /tmp/release-payload.json
+
+          curl -fsSL -X POST "${COORDINATOR_URL}/v1/releases" \
+            -H "Authorization: Bearer ${RELEASE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/release-payload.json
+          echo ""
+          echo "Release v${VERSION} registered with coordinator"
+
+      # --- Cleanup keychain ---
+
+      - name: Cleanup
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+
+      # --- GitHub Release ---
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            /tmp/ponsbloom-bundle-macos-arm64.tar.gz
+            /tmp/Ponsbloom.dmg
+          generate_release_notes: true
+          body: |
+            ## Provider v${{ github.ref_name }}
+
+            **Binary hash (signed):** `${{ steps.hash.outputs.binary_hash }}`
+            **Bundle hash:** `${{ steps.hash.outputs.bundle_hash }}`
+            **Runtime hash (vllm-mlx):** `${{ steps.runtime.outputs.runtime_hash }}`
+            **ffmpeg hash (signed):** `${{ steps.hash.outputs.ffmpeg_hash }}`
+            **Signed by:** Developer ID Application: the Ponsbloom contributors (SLDQ2GJ6TL)
+            **Notarized:** Yes
+
+            ### Install
+            ```bash
+            curl -fsSL ${{ secrets.COORDINATOR_URL }}/install.sh | bash
+            ```

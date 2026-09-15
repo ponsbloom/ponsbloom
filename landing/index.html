@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0A0E0F">
+  <title>Ponsbloom — Private AI Inference on Apple Silicon</title>
+  <meta name="description" content="Ponsbloom is a decentralized inference network. Private, hardware-verified AI compute on idle Apple Silicon machines — OpenAI-compatible, up to 70% cheaper.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <script>document.documentElement.className=localStorage.getItem("db-theme")||"";</script>
+  <style>
+    @font-face { font-family: 'ABC Repro'; src: url('assets/fonts/ABCrepro-regular-web.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'ABC Repro'; src: url('assets/fonts/ABCrepro-medium-web.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'ABC Repro'; src: url('assets/fonts/ABCrepro-bold-web.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'ABC Repro Mono'; src: url('assets/fonts/ABCreproMono-regular-web.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+
+    :root {
+      --bg:          #0A0E0F;
+      --surface:     #101617;
+      --surface-2:   #151D1F;
+      --ink:         #F2F5F4;
+      --ink-2:       #B6C2C0;
+      --ink-3:       #7C8A88;
+      --line:        #1E292B;
+      --accent:      #A8C5B5;
+      --accent-deep: #3D7A68;
+      --accent-ink:  #062B27;
+      --glow:        rgba(45, 212, 191, 0.09);
+      --header-bg:   rgba(10, 14, 15, 0.85);
+      --radius:      14px;
+      --font-sans:  'ABC Repro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono:  'ABC Repro Mono', 'SF Mono', 'Fira Code', monospace;
+    }
+    html.light {
+      --bg:          #FAFCFB;
+      --surface:     #FFFFFF;
+      --surface-2:   #F1F6F5;
+      --ink:         #0C1312;
+      --ink-2:       #48585A;
+      --ink-3:       #7E8E8C;
+      --line:        #E2ECEA;
+      --accent:      #2D6054;
+      --accent-deep: #2D6054;
+      --accent-ink:  #FFFFFF;
+      --glow:        rgba(13, 148, 136, 0.07);
+      --header-bg:   rgba(250, 252, 251, 0.85);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color .35s ease, color .35s ease;
+    }
+    ::selection { background: var(--accent); color: var(--accent-ink); }
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+    /* ─── Header ─── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--header-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+      transition: background-color .35s ease, border-color .35s ease;
+    }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+    .brand svg { display: block; }
+    nav { display: flex; align-items: center; gap: 26px; }
+    nav a.link { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--ink-3); transition: color .2s; }
+    nav a.link:hover { color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 20px; border-radius: 10px;
+      font-size: 13.5px; font-weight: 500; letter-spacing: 0.01em;
+      border: 1px solid transparent; cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, background .2s, border-color .2s, color .2s;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(20, 184, 166, 0.25); }
+    .btn-outline { border-color: var(--line); color: var(--ink); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm { padding: 8px 16px; font-size: 12.5px; }
+
+    /* ─── Hero ─── */
+    .hero { position: relative; padding: 110px 0 90px; overflow: hidden; }
+    .hero::before {
+      content: ''; position: absolute; top: -220px; left: 50%; transform: translateX(-50%);
+      width: 900px; height: 520px; border-radius: 50%;
+      background: radial-gradient(ellipse, var(--glow) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-grid { position: relative; display: grid; grid-template-columns: 1.15fr 1fr; gap: 64px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 22px;
+    }
+    .eyebrow::before { content: ''; width: 22px; height: 1.5px; background: var(--accent); }
+    h1 {
+      font-size: clamp(38px, 5.4vw, 58px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.06;
+      margin-bottom: 24px;
+    }
+    h1 .accent { color: var(--accent); }
+    .lead { font-size: 17px; color: var(--ink-2); max-width: 520px; margin-bottom: 34px; }
+    .lead strong { color: var(--ink); font-weight: 500; }
+    .ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 30px; }
+    .meta-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em;
+      padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line); color: var(--ink-2);
+    }
+    .chip .ca { opacity: 0.6; }
+    .chip .soon { color: var(--accent); font-weight: 700; }
+    a.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* butterfly illustration panel */
+    .bloom-panel {
+      position: relative; border-radius: 22px; border: 1px solid var(--line);
+      background: var(--surface); padding: 44px 38px;
+      transition: background-color .35s ease, border-color .35s ease;
+    }
+    .bloom-panel::after {
+      content: ''; position: absolute; inset: 0; border-radius: 22px;
+      background: radial-gradient(ellipse at 70% 20%, var(--glow), transparent 60%);
+      pointer-events: none;
+    }
+    .flow { display: flex; flex-direction: column; gap: 0; position: relative; z-index: 1; }
+    .flow-node {
+      display: flex; align-items: center; gap: 12px;
+      padding: 15px 18px; border-radius: 12px; border: 1px solid var(--line);
+      background: var(--surface-2);
+      transition: background-color .35s ease, border-color .35s ease;
+    }
+    .flow-node.hl { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 30px rgba(20, 184, 166, 0.12); }
+    .flow-node .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex-shrink: 0; }
+    .flow-node.hl .dot { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+    .flow-node .name { font-size: 14px; font-weight: 500; }
+    .flow-node .sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-left: auto; }
+    .flow-arrow { display: flex; align-items: center; gap: 10px; padding: 6px 0 6px 24px; }
+    .flow-arrow .stem { width: 1.5px; height: 26px; background: var(--accent); opacity: 0.6; }
+    .flow-arrow .lbl { font-family: var(--font-mono); font-size: 10.5px; color: var(--accent); letter-spacing: 0.06em; }
+
+    /* ─── Sections ─── */
+    section { padding: 84px 0; }
+    .sec-eyebrow { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+    h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 16px; }
+    .sec-lead { font-size: 16px; color: var(--ink-2); max-width: 640px; margin-bottom: 44px; }
+    .sec-lead strong { color: var(--ink); font-weight: 500; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card {
+      border: 1px solid var(--line); border-radius: var(--radius);
+      background: var(--surface); padding: 28px 26px;
+      transition: transform .25s cubic-bezier(.2,.7,.3,1), box-shadow .25s ease, background-color .35s ease, border-color .35s ease;
+    }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 12px 34px rgba(0,0,0,0.18); border-color: var(--accent); }
+    html.light .card:hover { box-shadow: 0 12px 34px rgba(13, 148, 136, 0.10); }
+    .card h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+    .card p { font-size: 14px; color: var(--ink-2); }
+    .card .num { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 0.1em; margin-bottom: 14px; display: block; }
+
+    /* stats */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 48px; }
+    .stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 24px; background: var(--surface); }
+    .stat .v { font-size: clamp(28px, 3.4vw, 40px); font-weight: 700; letter-spacing: -0.03em; color: var(--accent); line-height: 1; margin-bottom: 8px; }
+    .stat .k { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+
+    /* code */
+    .code-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #0C1210; }
+    .code-head { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .code-head .d { width: 9px; height: 9px; border-radius: 50%; }
+    .code-head .fname { margin-left: 10px; font-family: var(--font-mono); font-size: 11px; color: #7C8A88; }
+    pre {
+      font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
+      padding: 22px 24px; overflow-x: auto; color: #D9E2E0;
+    }
+    .tok-k { color: #C8DDD5; } .tok-s { color: #A7D9CF; } .tok-c { color: #5E6E6C; } .tok-f { color: #7DD3FC; } .tok-n { color: #F0C987; }
+    html.light .code-wrap { border-color: #10201E; }
+    html.light pre { color: #CFE0DC; }
+
+    /* pricing table */
+    .tbl-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; font-family: var(--font-mono); font-size: 10.5px; font-weight: 400;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
+      padding: 14px 22px; border-bottom: 1px solid var(--line);
+    }
+    td { padding: 16px 22px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    td .m { font-weight: 500; }
+    td .md { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+    td .price { font-family: var(--font-mono); font-size: 13px; }
+    td .was { color: var(--ink-3); text-decoration: line-through; font-size: 12.5px; margin-left: 8px; }
+    .save { font-family: var(--font-mono); font-size: 10.5px; color: var(--accent); border: 1px solid var(--accent); padding: 3px 9px; border-radius: 99px; }
+
+    /* CTA band */
+    .band {
+      border-radius: 20px; background: var(--accent);
+      color: var(--accent-ink); padding: 52px 48px;
+      display: flex; align-items: center; justify-content: space-between; gap: 32px;
+      position: relative; overflow: hidden;
+    }
+    .band::after {
+      content: ''; position: absolute; top: -80px; right: -60px;
+      width: 300px; height: 300px; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.25);
+    }
+    .band h3 { font-size: clamp(22px, 2.8vw, 30px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .band p { opacity: 0.85; font-size: 14.5px; max-width: 460px; }
+    .band .btn { background: var(--accent-ink); color: var(--accent); flex-shrink: 0; }
+    html.light .band { color: #FFFFFF; }
+    html.light .band .btn { background: #0C1312; color: #C8DDD5; }
+
+    /* models list */
+    .models { display: flex; flex-direction: column; gap: 10px; }
+    .model-row {
+      display: flex; align-items: center; gap: 14px;
+      border: 1px solid var(--line); border-radius: 12px;
+      background: var(--surface); padding: 15px 20px;
+      transition: border-color .2s;
+    }
+    .model-row:hover { border-color: var(--accent); }
+    .model-row .mn { font-weight: 500; font-size: 14.5px; min-width: 200px; }
+    .model-row .md { font-size: 12.5px; color: var(--ink-3); flex: 1; }
+    .model-row .tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 2px 10px; }
+
+    /* footer */
+    footer { border-top: 1px solid var(--line); padding: 40px 0; }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; }
+    .footer-inner .copy { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+    .footer-links { display: flex; gap: 22px; font-family: var(--font-mono); font-size: 11.5px; }
+    .footer-links a { color: var(--ink-3); transition: color .2s; }
+    .footer-links a:hover { color: var(--accent); }
+
+    /* theme toggle */
+    .theme-toggle {
+      background: none; border: 1px solid var(--line); border-radius: 9px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; color: var(--ink-3); transition: color .2s, border-color .2s;
+    }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* reveal on scroll */
+    .rv { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+    .rv.on { opacity: 1; transform: none; }
+
+    @media (max-width: 880px) {
+      .hero-grid, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .band { flex-direction: column; align-items: flex-start; }
+      nav a.link { display: none; }
+      .model-row { flex-wrap: wrap; }
+      .model-row .md { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header>
+  <div class="container header-inner">
+    <a href="/" class="brand">
+      <img src="assets/logo-ponsbloom.png" width="36" height="36" alt="Ponsbloom" style="display:block;object-fit:contain;">
+      Ponsbloom
+    </a>
+    <nav>
+      <a class="link" href="#why">Why</a>
+      <a class="link" href="#approach">Approach</a>
+      <a class="link" href="#api">API</a>
+      <a class="link" href="#pricing">Pricing</a>
+      <a class="link" href="#operators">Operators</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+      <a href="https://app.ponsbloom.com" class="btn btn-primary btn-sm">Use Ponsbloom ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="container hero-grid">
+      <div>
+        <div class="eyebrow">Decentralized inference network</div>
+        <h1>Private AI,<br>in bloom on <span class="accent">idle Macs</span></h1>
+        <p class="lead">
+          Ponsbloom connects <strong>over 100 million Apple Silicon machines</strong> sitting idle
+          directly to AI demand. Prompts are encrypted end-to-end, every answer is signed by
+          hardware you can verify. OpenAI-compatible. <strong>~50% cheaper</strong> than
+          centralized APIs — operators keep <strong>95% of revenue</strong>.
+        </p>
+        <div class="ctas">
+          <a href="https://app.ponsbloom.com" class="btn btn-primary">Use Ponsbloom ↗</a>
+          <a href="https://app.ponsbloom.com/earn" class="btn btn-outline">Start Earning ↗</a>
+        </div>
+        <div class="meta-chips">
+          <span class="chip"><span class="ca">CA:</span> <span class="soon">Coming soon</span></span>
+          <a class="chip" href="https://x.com/Ponsbloom" target="_blank" rel="noopener">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            @Ponsbloom
+          </a>
+        </div>
+      </div>
+
+      <div class="bloom-panel">
+        <div class="flow">
+          <div class="flow-node"><span class="dot"></span><span class="name">Your app</span><span class="sub">OpenAI-compatible</span></div>
+          <div class="flow-arrow"><span class="stem"></span><span class="lbl">E2E encrypted</span></div>
+          <div class="flow-node hl"><span class="dot"></span><span class="name">Ponsbloom coordinator</span><span class="sub">routes · attests · settles</span></div>
+          <div class="flow-arrow"><span class="stem"></span><span class="lbl">signed hardware proof</span></div>
+          <div class="flow-node"><span class="dot"></span><span class="name">Verified Macs</span><span class="sub">M1 → M5 · never see your data</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHY ============ -->
+  <section id="why">
+    <div class="container">
+      <div class="rv">
+        <div class="sec-eyebrow">Why Ponsbloom</div>
+        <h2>Three layers of markup, removed</h2>
+        <p class="sec-lead">
+          AI compute today flows through GPU makers → hyperscalers → API providers, each taking a cut.
+          Meanwhile <strong>100M+ consumer Macs</strong> idle ~18 hours a day. Ponsbloom collapses the
+          supply chain to a single hop — encrypted demand in, signed answers out.
+        </p>
+      </div>
+      <div class="stats">
+        <div class="stat rv"><div class="v">100M+</div><div class="k">idle Apple Silicon machines</div></div>
+        <div class="stat rv"><div class="v">~70%</div><div class="k">cheaper than centralized APIs</div></div>
+        <div class="stat rv"><div class="v">18hrs</div><div class="k">average daily idle time per Mac</div></div>
+        <div class="stat rv"><div class="v">0%</div><div class="k">platform fee for operators</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ APPROACH ============ -->
+  <section id="approach">
+    <div class="container">
+      <div class="rv">
+        <div class="sec-eyebrow">Approach</div>
+        <h2>Trust, without access</h2>
+        <p class="sec-lead">
+          Operators run your inference — <strong>they cannot see your data</strong>. Every path from
+          prompt to answer that an operator could observe has been eliminated.
+        </p>
+      </div>
+      <div class="grid-2">
+        <div class="card rv"><span class="num">01 — ENCRYPTION</span><h3>Encrypted end-to-end</h3><p>Requests are encrypted on your device. The coordinator routes ciphertext — only the target node's hardware-bound key can decrypt it.</p></div>
+        <div class="card rv"><span class="num">02 — HARDWARE</span><h3>Hardware-verified</h3><p>Every node holds a key generated inside Apple's tamper-resistant Secure Enclave. Attestation traces back to Apple's root certificate authority.</p></div>
+        <div class="card rv"><span class="num">03 — RUNTIME</span><h3>Hardened runtime</h3><p>Inference is locked at the OS level: debugger attachment blocked, memory inspection blocked, no shell access. Nothing to extract from a live process.</p></div>
+        <div class="card rv"><span class="num">04 — OUTPUT</span><h3>Traceable to hardware</h3><p>Every response is signed by the exact machine that produced it. The full attestation chain is published for independent verification.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ API ============ -->
+  <section id="api">
+    <div class="container">
+      <div class="rv">
+        <div class="sec-eyebrow">Implementation</div>
+        <h2>OpenAI-compatible API</h2>
+        <p class="sec-lead">
+          Point your existing OpenAI SDK at Ponsbloom and go. Streaming, function calling,
+          speech-to-text — same shape, lower cost, hardware-verified.
+        </p>
+      </div>
+      <div class="code-wrap rv">
+        <div class="code-head">
+          <span class="d" style="background:#FF5F57"></span><span class="d" style="background:#FEBC2E"></span><span class="d" style="background:#27C93F"></span>
+          <span class="fname">quickstart.py</span>
+        </div>
+        <pre><span class="tok-k">from</span> openai <span class="tok-k">import</span> OpenAI
+
+client = <span class="tok-f">OpenAI</span>(
+    base_url=<span class="tok-s">"https://api.ponsbloom.ai/v1"</span>,
+    api_key=<span class="tok-s">"&lt;your-api-key&gt;"</span>,
+)
+
+stream = client.chat.completions.<span class="tok-f">create</span>(
+    model=<span class="tok-s">"gemma-4-26b"</span>,
+    messages=[{<span class="tok-s">"role"</span>: <span class="tok-s">"user"</span>, <span class="tok-s">"content"</span>: <span class="tok-s">"Explain zero-knowledge proofs"</span>}],
+    stream=<span class="tok-n">True</span>,
+)
+
+<span class="tok-k">for</span> chunk <span class="tok-k">in</span> stream:
+    <span class="tok-k">if</span> chunk.choices[0].delta.content:
+        <span class="tok-f">print</span>(chunk.choices[0].delta.content, end=<span class="tok-s">""</span>, flush=<span class="tok-n">True</span>)</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRICING ============ -->
+  <section id="pricing">
+    <div class="container">
+      <div class="rv">
+        <div class="sec-eyebrow">Pricing</div>
+        <h2>Per-token. No subscriptions.</h2>
+        <p class="sec-lead">Idle hardware has near-zero marginal cost — savings pass straight through to you.</p>
+      </div>
+      <div class="tbl-wrap rv">
+        <table>
+          <thead><tr><th>Model</th><th>Input / 1M</th><th>Output / 1M</th><th>Savings</th></tr></thead>
+          <tbody>
+            <tr><td><div class="m">Gemma 4 26B</div><div class="md">Fast multimodal MoE — 4B active</div></td><td><span class="price">$0.042</span><span class="was">$0.084</span></td><td><span class="price">$0.22</span><span class="was">$0.44</span></td><td><span class="save">50%</span></td></tr>
+            <tr><td><div class="m">Qwen 3.5 27B</div><div class="md">Dense frontier reasoning</div></td><td><span class="price">$0.10</span><span class="was">$0.20</span></td><td><span class="price">$0.78</span><span class="was">$1.56</span></td><td><span class="save">50%</span></td></tr>
+            <tr><td><div class="m">Qwen 3.5 122B MoE</div><div class="md">10B active — best quality</div></td><td><span class="price">$0.13</span><span class="was">$0.26</span></td><td><span class="price">$1.04</span><span class="was">$2.08</span></td><td><span class="save">50%</span></td></tr>
+            <tr><td><div class="m">Nemotron 3.5 Lightning</div><div class="md">NVIDIA — low latency</div></td><td><span class="price">$0.065</span><span class="was">$0.13</span></td><td><span class="price">$0.18</span><span class="was">$0.36</span></td><td><span class="save">50%</span></td></tr>
+            <tr><td><div class="m">GPT-OSS 20B</div><div class="md">OpenAI open weights</div></td><td><span class="price">$0.02</span><span class="was">$0.04</span></td><td><span class="price">$0.10</span><span class="was">$0.20</span></td><td><span class="save">50%</span></td></tr>
+            <tr><td><div class="m">Speech-to-Text</div><div class="md">Cohere Transcribe · per audio minute</div></td><td><span class="price">$0.0010</span><span class="was">$0.0020</span></td><td><span class="md">—</span></td><td><span class="save">50%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OPERATORS ============ -->
+  <section id="operators">
+    <div class="container">
+      <div class="rv">
+        <div class="sec-eyebrow">For operators</div>
+        <h2>Your Mac earns while you sleep</h2>
+        <p class="sec-lead">
+          Install the agent, keep your Mac plugged in, collect USD. You keep <strong>95% of revenue</strong> —
+          Ponsbloom takes <strong>no platform fee</strong> — roughly <strong>90% profit margin</strong> after electricity.
+        </p>
+      </div>
+      <div class="grid-3">
+        <div class="card rv"><span class="num">STEP 1</span><h3>Install the agent</h3><p>One command. The agent handles enrollment, attestation, and model serving on macOS.</p></div>
+        <div class="card rv"><span class="num">STEP 2</span><h3>Stay plugged in</h3><p>Scheduling is built in — serve only when your machine is idle, on power, or on your own hours.</p></div>
+        <div class="card rv"><span class="num">STEP 3</span><h3>Get paid in USD</h3><p>Earnings accrue per token served. Track everything live in the operator console.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODELS + CTA ============ -->
+  <section>
+    <div class="container">
+      <div class="rv" style="margin-bottom: 40px;">
+        <div class="sec-eyebrow">Available models</div>
+        <h2>Curated, attested, ready</h2>
+      </div>
+      <div class="models rv">
+        <div class="model-row"><span class="mn">Gemma 4 26B</span><span class="md">Google — fast multimodal MoE, 4B active params</span><span class="tag">TEXT</span><span class="tag">VISION</span></div>
+        <div class="model-row"><span class="mn">Qwen 3.5 27B</span><span class="md">Alibaba — dense frontier reasoning</span><span class="tag">TEXT</span><span class="tag">TOOLS</span></div>
+        <div class="model-row"><span class="mn">Nemotron 3.5 Lightning</span><span class="md">NVIDIA — latency-optimized</span><span class="tag">TEXT</span></div>
+        <div class="model-row"><span class="mn">GPT-OSS 20B</span><span class="md">OpenAI open weights</span><span class="tag">TEXT</span><span class="tag">TOOLS</span></div>
+        <div class="model-row"><span class="mn">Cohere Transcribe</span><span class="md">Speech-to-text, hardware-verified</span><span class="tag">AUDIO</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top: 0;">
+    <div class="container">
+      <div class="band rv">
+        <div>
+          <h3>Start in under a minute</h3>
+          <p>Sign in with email, get an API key, make your first private call — or plug your Mac into the network and start earning tonight.</p>
+        </div>
+        <a href="https://app.ponsbloom.com" class="btn">Open Console ↗</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <span class="copy">© 2026 Ponsbloom · Research preview</span>
+    <div class="footer-links">
+      <a href="https://app.ponsbloom.com">Console</a>
+      <a href="https://x.com/Ponsbloom" target="_blank" rel="noopener">X</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // theme
+  (function() {
+    var btn = document.getElementById('theme-toggle');
+    var root = document.documentElement;
+    function apply(mode) {
+      root.classList.toggle('light', mode === 'light');
+      var moon = btn.querySelector('.icon-moon'), sun = btn.querySelector('.icon-sun');
+      if (moon) moon.style.display = mode === 'light' ? 'none' : 'block';
+      if (sun) sun.style.display = mode === 'light' ? 'block' : 'none';
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = mode === 'light' ? '#FAFCFB' : '#0A0E0F';
+    }
+    apply(root.classList.contains('light') ? 'light' : 'dark');
+    btn.addEventListener('click', function() {
+      var next = root.classList.contains('light') ? 'dark' : 'light';
+      localStorage.setItem('db-theme', next);
+      apply(next);
+    });
+  })();
+  // reveal on scroll
+  (function() {
+    var els = document.querySelectorAll('.rv');
+    if (!('IntersectionObserver' in window)) { els.forEach(function(e){e.classList.add('on');}); return; }
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(en) { if (en.isIntersecting) { en.target.classList.add('on'); io.unobserve(en.target); } });
+    }, { threshold: 0.12 });
+    els.forEach(function(e) { io.observe(e); });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C8DDD5"/>
+      <stop offset="50%" stop-color="#A8C5B5"/>
+      <stop offset="100%" stop-color="#7BA89A"/>
+    </linearGradient>
+    <linearGradient id="hi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.80)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <!-- P-block letter -->
+  <rect x="7" y="7" width="17" height="50" rx="5" fill="url(#gb)"/>
+  <rect x="7" y="7" width="40" height="17" rx="5" fill="url(#gb)"/>
+  <rect x="24" y="30" width="23" height="14" rx="5" fill="url(#gb)"/>
+  <rect x="47" y="7" width="10" height="23" rx="5" fill="url(#gb)"/>
+  <!-- Bevel highlight -->
+  <rect x="7" y="7" width="50" height="11" rx="5" fill="url(#hi)" opacity="0.75"/>
+  <!-- Edge strokes -->
+  <rect x="7" y="7" width="17" height="50" rx="5" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="1"/>
+  <rect x="7" y="7" width="40" height="17" rx="5" fill="none" stroke="rgba(255,255,255,0.60)" stroke-width="1"/>
+  <rect x="24" y="30" width="23" height="14" rx="5" fill="none" stroke="rgba(255,255,255,0.50)" stroke-width="1"/>
+  <rect x="47" y="7" width="10" height="23" rx="5" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1"/>
+</svg>
