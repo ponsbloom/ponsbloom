@@ -309,7 +309,7 @@
           <a href="https://app.ponsbloom.com/earn" class="btn btn-outline">Start Earning ↗</a>
         </div>
         <div class="meta-chips">
-          <span class="chip"><span class="ca">CA:</span> <span class="soon">Coming soon</span></span>
+          <span class="chip"><span class="ca">CA:</span> <span class="soon" id="ca-addr" style="cursor:pointer" title="Click to copy">0xD936681ab901E128488f239D9539e820D8BC642e</span></span>
           <a class="chip" href="https://x.com/Ponsbloom" target="_blank" rel="noopener">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
             @Ponsbloom
@@ -519,6 +519,17 @@ stream = client.chat.completions.<span class="tok-f">create</span>(
       entries.forEach(function(en) { if (en.isIntersecting) { en.target.classList.add('on'); io.unobserve(en.target); } });
     }, { threshold: 0.12 });
     els.forEach(function(e) { io.observe(e); });
+  })();
+  (function() {
+    var ca = document.getElementById('ca-addr');
+    if (!ca) return;
+    ca.addEventListener('click', function() {
+      navigator.clipboard.writeText(ca.textContent.trim()).then(function() {
+        var old = ca.textContent;
+        ca.textContent = 'Copied!';
+        setTimeout(function() { ca.textContent = old; }, 1200);
+      });
+    });
   })();
 </script>
 </body>
