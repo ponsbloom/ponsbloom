@@ -1,0 +1,63 @@
+name: Feature Request
+description: Propose a new feature or improvement
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe the problem you want to solve — not just the solution.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component does this feature apply to?
+      options:
+        - coordinator
+        - provider
+        - console-ui
+        - enclave
+        - image-bridge
+        - API
+        - documentation
+        - other / cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve? Who is affected and how often?
+      placeholder: "As a provider operator, I find it difficult to X because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the solution you'd like, including any API or UX sketches.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other solutions or workarounds did you consider? Why are they insufficient?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, prior art, or any other relevant context.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and discussions and this has not been proposed before.
+          required: true
+        - label: I am willing to help implement this feature if guidance is provided.

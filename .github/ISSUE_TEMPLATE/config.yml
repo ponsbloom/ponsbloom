@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ponsbloom Website
+    url: https://ponsbloom.com
+    about: Visit ponsbloom.com for product documentation, provider signup, and the API console.
+  - name: X / Twitter (@Ponsbloom)
+    url: https://x.com/Ponsbloom
+    about: Follow @Ponsbloom for announcements, status updates, and community discussion.
+  - name: Provider Setup Guide
+    url: https://ponsbloom.com/docs/provider-setup
+    about: Step-by-step guide to becoming a Ponsbloom inference provider.
+  - name: API Reference
+    url: https://ponsbloom.com/docs/api
+    about: Full API reference for consumers using the OpenAI-compatible endpoint.

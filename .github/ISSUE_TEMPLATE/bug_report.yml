@@ -1,0 +1,97 @@
+name: Bug Report
+description: Report a bug in Ponsbloom
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out all fields — incomplete reports will be closed.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - coordinator
+        - provider
+        - console-ui
+        - enclave
+        - image-bridge
+        - API (general)
+        - documentation
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: A clear and concise description of what the bug is.
+      placeholder: "When I do X, Y happens instead of Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal reproduction steps.
+      placeholder: |
+        1. Run `ponsbloom provider start`
+        2. Send a request with model `qwen3.6-35b`
+        3. Observe error in logs
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include error messages and log snippets.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `ponsbloom --version` or the component version (e.g. coordinator v0.4.2)
+      placeholder: "ponsbloom v0.4.2 (coordinator: 0.4.2, provider: 0.4.1)"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / platform
+      description: macOS version and chip (for provider issues), or browser (for console-ui issues)
+      placeholder: "macOS 14.5 (Sonoma), Apple M2 Pro"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste relevant log output. Use `ponsbloom provider logs --tail 100` for provider issues.
+        This will be automatically formatted as code.
+      render: shell
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: I am running the latest version of the affected component.
+          required: true

@@ -1,0 +1,90 @@
+name: Good First Issue
+description: "[Maintainers only] Label a well-scoped issue for new contributors"
+labels: ["good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for **maintainers** to create well-scoped issues for new contributors.
+        Fill out each section so a first-time contributor can get started without additional guidance.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - coordinator
+        - provider
+        - console-ui
+        - enclave
+        - image-bridge
+        - documentation
+        - testing
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the task in plain language.
+      placeholder: "Add a `--json` flag to `ponsbloom provider status` so the output can be parsed by scripts."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Background & context
+      description: Why does this issue exist? Link to any related issues, PRs, or design docs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & files to change
+      description: List the files or modules a contributor should touch, and what changes are needed.
+      placeholder: |
+        - `provider/src/cli/status.rs` — add `--json` flag to the `status` subcommand
+        - `provider/src/status.rs` — add `StatusOutput::to_json()` method
+        - `provider/tests/cli_status.rs` — add a test for `--json` output
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How will the reviewer know this issue is complete?
+      placeholder: |
+        - `ponsbloom provider status --json` prints valid JSON with all existing fields
+        - Existing non-JSON output is unchanged
+        - A test covers the new flag
+    validations:
+      required: true
+
+  - type: textarea
+    id: hints
+    attributes:
+      label: Implementation hints
+      description: Optional tips, links to similar code, or gotchas the contributor should know.
+
+  - type: input
+    id: estimated_time
+    attributes:
+      label: Estimated effort
+      placeholder: "~2 hours"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Maintainer checklist
+      options:
+        - label: The issue is self-contained (no hidden dependencies on in-progress work).
+          required: true
+        - label: The scope is small enough to complete in a single PR.
+          required: true
+        - label: I am available to review and answer questions promptly.
+          required: true
