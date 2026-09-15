@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.darkbloom.dev";
+const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.ponsbloom.com";
 
 export async function GET(req: NextRequest) {
   const coordUrl = req.headers.get("x-coordinator-url") || DEFAULT_COORD;

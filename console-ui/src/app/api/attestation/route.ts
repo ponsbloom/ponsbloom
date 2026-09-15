@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.darkbloom.dev";
+const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.ponsbloom.com";
 
 // Server-side proxy for the public attestation feed. The coordinator's CORS
 // policy only allows https://console.darkbloom.dev, so browsers on other

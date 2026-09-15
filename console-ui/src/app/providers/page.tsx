@@ -23,7 +23,7 @@ import {
 import Link from "next/link";
 
 const ATTESTATION_API = "/api/attestation";  // server-side proxy avoids CORS on non-console origins
-const ATTESTATION_UPSTREAM = "https://api.darkbloom.dev";
+const ATTESTATION_UPSTREAM = "https://api.ponsbloom.com";
 
 function maskSerial(serial: string): string {
   if (!serial) return "";

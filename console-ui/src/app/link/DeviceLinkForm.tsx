@@ -5,7 +5,7 @@ import { useAuthContext } from "@/components/providers/PrivyClientProvider";
 
 const COORDINATOR_URL =
   process.env.NEXT_PUBLIC_COORDINATOR_URL ||
-  "https://api.darkbloom.dev";
+  "https://api.ponsbloom.com";
 
 type LinkStatus = "idle" | "submitting" | "success" | "error";
 

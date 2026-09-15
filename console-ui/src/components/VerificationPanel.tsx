@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 const ATTESTATION_API = "/api/attestation";  // server-side proxy avoids CORS on non-console origins
-const ATTESTATION_UPSTREAM = "https://api.darkbloom.dev";
+const ATTESTATION_UPSTREAM = "https://api.ponsbloom.com";
 
 /** Mask a serial number for normal mode: show first 4 + last 2, mask the rest. */
 function maskSerial(serial: string): string {

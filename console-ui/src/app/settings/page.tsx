@@ -26,7 +26,7 @@ export default function SettingsPage() {
       setCoordinatorUrl(
         localStorage.getItem("ponsbloom_coordinator_url") ||
           process.env.NEXT_PUBLIC_COORDINATOR_URL ||
-          "https://api.darkbloom.dev"
+          "https://api.ponsbloom.com"
       );
     }
   }, []);

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 
-const STATS_API = "https://api.darkbloom.dev";
+const STATS_API = "https://api.ponsbloom.com";
 
 interface CPUCores {
   total: number;

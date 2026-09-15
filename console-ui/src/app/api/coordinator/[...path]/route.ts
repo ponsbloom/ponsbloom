@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.darkbloom.dev";
+const DEFAULT_COORD = process.env.NEXT_PUBLIC_COORDINATOR_URL || "https://api.ponsbloom.com";
 
 // Generic authed proxy to the coordinator. The coordinator's CORS policy
 // only allows https://console.darkbloom.dev as an origin, so any authed

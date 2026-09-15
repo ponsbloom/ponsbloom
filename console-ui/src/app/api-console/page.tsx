@@ -22,7 +22,7 @@ import {
 
 const API_KEY_STORAGE = "ponsbloom_api_key";
 const COORDINATOR_STORAGE = "ponsbloom_coordinator_url";
-const DEFAULT_COORDINATOR = "https://api.darkbloom.dev";
+const DEFAULT_COORDINATOR = "https://api.ponsbloom.com";
 
 function getApiKey() {
   if (typeof window === "undefined") return "";
