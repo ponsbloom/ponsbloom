@@ -70,7 +70,7 @@ crypto_box = "0.9"
 base64 = "0.22"
 
 # SHA-256 — streaming hash for model weight fingerprinting and binary integrity
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Embedded Python — for in-process inference (Phase 3)
 # Links the Python interpreter directly into our binary so inference
