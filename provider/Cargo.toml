@@ -67,7 +67,7 @@ crossterm = "0.28"
 
 # Crypto — NaCl-compatible X25519 + XSalsa20-Poly1305
 crypto_box = "0.9"
-base64 = "0.22"
+base64 = "0.23"
 
 # SHA-256 — streaming hash for model weight fingerprinting and binary integrity
 sha2 = "0.10"
