@@ -59,7 +59,7 @@ uuid = { version = "1", features = ["v4"] }
 libc = "0.2"
 
 # Misc
-dirs = "6"
+dirs = "7"
 chrono = "0.4"
 
 # Terminal UI — raw key input for interactive model picker
