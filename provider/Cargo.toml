@@ -76,7 +76,7 @@ sha2 = "0.10"
 # Links the Python interpreter directly into our binary so inference
 # happens in our hardened process. No subprocess, no IPC, no sniffable channel.
 # Behind a feature flag so `cargo test` doesn't need Python linked.
-pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
+pyo3 = { version = "0.30", features = ["auto-initialize"], optional = true }
 
 [features]
 default = ["python"]
